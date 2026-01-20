@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WAYV Braille Learning System</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header>
+        <div class="logo">WAYV Learning System</div>
+        <div class="status-indicators">
+            <span id="connectionStatus" class="disconnected">● Disconnected</span>
+            <span id="sessionTime">Session: 00m 00s</span>
+        </div>
+        <div class="controls">
+            <button id="connectBtn">Connect Device</button>
+            <button id="endBtn" style="background-color: var(--error-color); color: white; border-color: var(--error-color);">End Session</button>
+            <button id="downloadBtn">Export CSV</button>
+            <button id="voiceBtn" title="Toggle Voice Commands">🎤</button>
+        </div>
+    </header>
+
+    <main class="dashboard">
+        <div class="dashboard-column">
+            <div class="card" id="braille-pattern-card">
+                <h2>Current Letter</h2>
+                <div class="braille-display">
+                    <div class="braille-char" id="braille-char-output">A</div>
+                    <div class="braille-cell">
+                        <div class="dot" id="dot-1"></div><div class="dot" id="dot-4"></div>
+                        <div class="dot" id="dot-2"></div><div class="dot" id="dot-5"></div>
+                        <div class="dot" id="dot-3"></div><div class="dot" id="dot-6"></div>
+                    </div>
+                </div>
+                <div class="braille-legend">
+                    Required Fold: <strong id="active-dots">1</strong>
+                </div>
+            </div>
+            <div class="card" id="current-status-card">
+                <h2>Session Control</h2>
+                <div class="status-item">
+                    <span>Mode:</span>
+                    <select id="modeSelect">
+                        <option value="learning">Alphabet Learning</option>
+                        <option value="practice">Word Practice</option>
+                        <option value="test">Test Mode</option>
+
+                    </select>
+                </div>
+                <div class="status-item">
+                    <span>Current Word:</span>
+                    <strong id="current-word-display">-</strong>
+                </div>
+                <div class="status-item">
+                    <span>Voice Status:</span>
+                    <strong id="voice-status">Inactive</strong>
+                </div>
+                <div class="command-panel">
+                    <button id="repeatBtn">Repeat</button>
+                    <button id="hintBtn">Hint</button>
+                    <button id="skipBtn">Skip</button>
+                    <button id="pauseResumeBtn">Pause</button>
+                    <button id="progressBtn">Check Progress</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-column wide">
+            <div class="card" id="mastery-path-card">
+                <h2>Alphabet Mastery Path</h2>
+                <div id="mastery-path-container">
+                    </div>
+            </div>
+            <div class="card" id="attempt-history-card">
+                <h2>Attempt History</h2>
+                <div class="history-metrics">
+                    <div><span id="history-accuracy">0%</span>Accuracy</div>
+                    <div><span id="history-avg-time">0s</span>Avg Time</div>
+                    <div><span id="history-current-streak">0</span>Streak</div>
+                    <div><span id="history-best-streak">0</span>Best</div>
+                </div>
+                <ul id="history-list">
+                    <li class="placeholder">Connect the device to begin tracking attempts.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="dashboard-column">
+             <div class="card" id="learning-progress-card">
+                <h2>Overall Progress</h2>
+                <div class="progress-summary">
+                    <div><span>Accuracy</span><strong id="progress-accuracy">0%</strong></div>
+                    <div><span>Avg Time</span><strong id="progress-avg-time">0s</strong></div>
+                    <div><span>Total</span><strong id="progress-total-attempts">0</strong></div>
+                </div>
+                <div class="progress-bar-container">
+                    <span>Accuracy Progress</span>
+                    <div class="progress-bar"><div id="accuracy-progress-bar" style="width: 0%;"></div></div>
+                </div>
+                 <canvas id="progressChart" height="120"></canvas>
+            </div>
+            <div class="card" id="error-analysis-card">
+                <h3>Focus Areas</h3>
+                <div id="focus-areas">
+                   <p>Letters with the highest error rates will appear here.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
