@@ -1,0 +1,154 @@
+:root {
+    --bg-color: #f4f7fa;
+    --card-bg-color: #ffffff;
+    --primary-color: #007bff;
+    --text-color: #333;
+    --text-secondary-color: #6c757d;
+    --border-color: #e9ecef;
+    --success-color: #28a745;
+    --error-color: #dc3545;
+    --warning-color: #ffc107;
+    --mastered-color: #198754;
+    --difficult-color: #fd7e14;
+    --font-family: 'Roboto', sans-serif;
+}
+
+body {
+    font-family: var(--font-family);
+    background-color: var(--bg-color);
+    margin: 0;
+    color: var(--text-color);
+    -webkit-font-smoothing: antialiased;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2rem;
+    background-color: var(--card-bg-color);
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.logo { font-size: 1.5rem; font-weight: 700; color: var(--primary-color); }
+.status-indicators span { margin-left: 1rem; font-size: 0.9rem; }
+#connectionStatus.disconnected { color: var(--error-color); }
+#connectionStatus.connected { color: var(--success-color); }
+
+.controls button {
+    margin-left: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border-color);
+    background-color: #f8f9fa;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+.controls button:hover { background-color: #e9ecef; }
+#connectBtn { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
+#connectBtn:hover { background-color: #0056b3; }
+#voiceBtn { font-size: 1.2rem; padding: 0.4rem 0.7rem; }
+/* Hide the Hint button from the Command Panel */
+#hintBtn {display: none;}
+#endBtn:hover {
+    background-color: #b02a37 !important; /* A darker red on hover */
+    border-color: #a52834 !important;
+}
+.dashboard { display: flex; padding: 1.5rem; gap: 1.5rem; align-items: flex-start; }
+.dashboard-column { flex: 1; display: flex; flex-direction: column; gap: 1.5rem; }
+.dashboard-column.wide { flex: 1.5; }
+
+.card {
+    background-color: var(--card-bg-color);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    padding: 1.5rem;
+}
+.card h2, .card h3 {
+    margin-top: 0;
+    font-size: 1.1rem;
+    font-weight: 500;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+/* Braille Pattern Card */
+.braille-display { display: flex; align-items: center; justify-content: center; gap: 2rem; margin: 1rem 0; }
+.braille-char { font-size: 5rem; font-weight: 700; color: var(--primary-color); }
+.braille-cell { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dot { width: 22px; height: 22px; border-radius: 50%; background-color: #e9ecef; }
+.dot.active { background-color: var(--primary-color); }
+.braille-legend { text-align: center; color: var(--text-secondary-color); font-size: 0.9rem; }
+
+/* Status Card */
+.status-item { display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0; font-size: 0.9rem; }
+.status-item select { border: 1px solid var(--border-color); border-radius: 4px; padding: 0.35rem; width: 50%; }
+
+/* New Command Panel Style */
+.command-panel {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+}
+.command-panel button {
+    padding: 0.75rem;
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.command-panel button:hover { background-color: #5a6268; }
+.command-panel #progressBtn { grid-column: 1 / -1; } /* Make last button span full width */
+
+/* Mastery Path */
+#mastery-path-container { display: flex; flex-wrap: wrap; gap: 8px; position: relative; }
+.letter-tile {
+    width: 40px; height: 40px; border-radius: 50%; display: flex;
+    align-items: center; justify-content: center; font-weight: bold;
+    color: white; position: relative; transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+.letter-tile.pending { background-color: #ced4da; }
+.letter-tile.current { background-color: var(--primary-color); box-shadow: 0 0 10px var(--primary-color); border-color: white; transform: scale(1.1); }
+.letter-tile.mastered { background-color: var(--mastered-color); }
+.letter-tile.difficult { background-color: var(--difficult-color); }
+
+/* Attempt History */
+.history-metrics { display: flex; justify-content: space-around; text-align: center; margin-bottom: 1rem; }
+.history-metrics span { display: block; font-size: 1.5rem; font-weight: 700; }
+.history-metrics div { font-size: 0.8rem; color: var(--text-secondary-color); }
+#history-list { list-style: none; padding: 0; margin: 0; max-height: 180px; overflow-y: auto; }
+#history-list li { display: flex; align-items: center; padding: 0.6rem; border-bottom: 1px solid var(--border-color); }
+#history-list li:last-child { border-bottom: none; }
+#history-list .status-icon { font-size: 1.2rem; margin-right: 1rem; }
+li.correct .status-icon { color: var(--success-color); }
+li.incorrect .status-icon { color: var(--error-color); }
+.attempt-details { flex-grow: 1; }
+.attempt-details small { color: var(--text-secondary-color); font-size: 0.8rem; margin-left: 0.5rem; }
+.attempt-time { font-size: 0.9rem; color: var(--text-secondary-color); font-weight: 500; }
+.placeholder { color: var(--text-secondary-color); text-align: center; padding: 2rem; }
+
+/* Learning Progress */
+.progress-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; text-align: center; margin-bottom: 1.5rem; }
+.progress-summary span { font-size: 0.8rem; color: var(--text-secondary-color); }
+.progress-summary strong { display: block; font-size: 1.5rem; margin-top: 0.25rem; }
+.progress-bar-container { margin-bottom: 1rem; }
+.progress-bar { width: 100%; height: 10px; background-color: var(--border-color); border-radius: 5px; overflow: hidden; margin-top: 0.5rem; }
+#accuracy-progress-bar { height: 100%; background-color: var(--primary-color); border-radius: 5px; transition: width 0.3s ease; }
+
+/* Error Analysis / Focus Areas */
+#focus-areas p { color: var(--text-secondary-color); }
+.focus-item {
+    padding: 0.75rem; background-color: #fff3cd; border-left: 4px solid var(--warning-color);
+    margin-bottom: 0.75rem; font-size: 0.9rem; border-radius: 4px;
+}
+.focus-item strong { font-size: 1.2rem; color: #664d03; }
+.focus-item small { display: block; margin-top: 0.25rem; color: #6c757d; }
