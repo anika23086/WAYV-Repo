@@ -1088,7 +1088,15 @@ if ("serial" in navigator) {
             this.currentLetterIndex = 0;
             this.currentWordIndex = 0;
             this.currentWordLetterIndex = 0;
-            this.alphabetFolds = { "a": [1], "b": [1, 2], "c": [1, 4], "d": [1, 4, 5], "e": [1, 5], "f": [1, 2, 4], "g": [1, 2, 4, 5], "h": [1, 2, 5], "i": [2, 4], "j": [2, 4, 5], "k": [1, 3], "l": [1, 2, 3], "m": [1, 3, 4], "n": [1, 3, 4, 5], "o": [1, 3, 5], "p": [1, 2, 3, 4], "q": [1, 2, 3, 4, 5], "r": [1, 2, 3, 5], "s": [2, 3, 4], "t": [2, 3, 4, 5], "u": [1, 3, 6], "v": [1, 2, 3, 6], "w": [2, 4, 5, 6], "x": [1, 3, 4, 6], "y": [1, 3, 4, 5, 6], "z": [1, 3, 5, 6] };
+            this.alphabetFolds = { "a": [1], "b": [1, 2], "c": [1, 4], "d": [1, 4, 5],
+                                     "e": [1, 5], "f": [1, 2, 4], "g": [1, 2, 4, 5], 
+                                     "h": [1, 2, 5], "i": [2, 4], "j": [2, 4, 5], 
+                                     "k": [1, 3], "l": [1, 2, 3], "m": [1, 3, 4], 
+                                     "n": [1, 3, 4, 5], "o": [1, 3, 5], "p": [1, 2, 3, 4], 
+                                     "q": [1, 2, 3, 4, 5], "r": [1, 2, 3, 5], "s": [2, 3, 4], 
+                                     "t": [2, 3, 4, 5], "u": [1, 3, 6], "v": [1, 2, 3, 6], 
+                                     "w": [2, 4, 5, 6], "x": [1, 3, 4, 6], "y": [1, 3, 4, 5, 6], 
+                                     "z": [1, 3, 5, 6] };
            
             // MODIFICATION: Voice commands are now always on by default.
             this.isListening = true;
@@ -1188,9 +1196,9 @@ if ("serial" in navigator) {
                 this.startSessionTimer();
                
                 // MODIFICATION: New, streamlined introduction flow as requested.
-                await this.speak("Device connected. Voice commands are now fully active.");
+                await this.speak("Device connected. Voice commands are active.");
                 await this.playIntroduction();
-                await this.speak("Let's start with learning mode.");
+                // await this.speak("Let's start with learning mode.");
                
                 this.readSerialLoop(); // Start listening for glove input
                 this.nextPrompt();     // Give the first prompt ('A')
@@ -1207,13 +1215,13 @@ if ("serial" in navigator) {
                 { num: 3, desc: "left index finger" }, { num: 4, desc: "right index finger" },
                 { num: 5, desc: "right middle finger" }, { num: 6, desc: "right ring finger" }
             ];
-            await this.speak("Let me introduce the finger mappings.");
-            for (const finger of fingers) {
-                await this.speak(`Finger ${finger.num} is your ${finger.desc}.`);
-                await this.writeToSerial(String(finger.num));
-                await new Promise(resolve => setTimeout(resolve, 500));
-            }
-            await this.speak("Introduction complete.");
+            // await this.speak("Let me introduce the finger mappings.");
+            // for (const finger of fingers) {
+            //     await this.speak(`Finger ${finger.num} is your ${finger.desc}.`);
+            //     await this.writeToSerial(String(finger.num));
+            //     await new Promise(resolve => setTimeout(resolve, 500));
+            // }
+            // await this.speak("Introduction complete.");
         }        
 
         async writeToSerial(data) {
@@ -1751,10 +1759,13 @@ if ("serial" in navigator) {
                 if (fingers && fingers.length > 0) {
                     fingers.forEach((finger, i) => {
                         setTimeout(() => this.writeToSerial(String(finger)), i * 150);
-                    });
-                }
-            });
+                    });                    
+            setTimeout(() => {
+                setTimeout(() => this.writeToSerial('B'), 300);
+            }, (fingers.length - 1) * 150 + 2000); // This is the key!
         }
+    });
+}
 
         updateAllStats() {
             const accuracy = this.totalInputs > 0 ? (this.correctInputs / this.totalInputs * 100) : 0;
