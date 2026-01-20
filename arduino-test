@@ -1,420 +1,965 @@
-#define adc1 A5
-#define adc2 A4
-#define adc3 A3
-#define adc4 A2
-#define adc5 A1
-#define adc6 A0
-#define buzzer 11
-#define ledd 13
-#define m1 4
-#define m2 3
-#define m3 2
-#define m4 5
-#define m5 6
-#define m6 7
-#define mod 8
-int flex2=0,flex1=0,flex3=0,flex4=0,flex5=0,flex6=0,swt;
 
-bool introDone = false;
 
-void vibrateFinger(int finger, int duration) {
-  digitalWrite(finger, HIGH);
-  delay(duration);
-  digitalWrite(finger, LOW);
-  delay(100);
-}
+if ("serial" in navigator) {
+    // DataCollector class remains the same.
+    class DataCollector {
+        constructor() {
+            this.sessionId = Date.now();
+            this.attemptHistory = [];
+            this.errorRates = {};
+            this.sessionLog = [];
+            // New: Track test results by word
+            this.testResults = [];
+        }
 
-void setup() 
-{  
- pinMode(mod,INPUT_PULLUP);
- pinMode(ledd,OUTPUT);
-  pinMode(buzzer,OUTPUT);
-  pinMode(m1,OUTPUT);
-  pinMode(m2,OUTPUT);
-  pinMode(m3,OUTPUT);
-  pinMode(m4,OUTPUT);
-  pinMode(m5,OUTPUT);
-  pinMode(m6,OUTPUT);
+        startNewAttempt(letter) {
+            this.lastPromptTime = Date.now();
+            if (!this.errorRates[letter]) {
+                this.errorRates[letter] = { attempts: 0, errors: 0 };
+            }
+        }
 
-  digitalWrite(buzzer,HIGH);
-  delay(1000);
-  digitalWrite(buzzer,LOW);
-   digitalWrite(ledd,HIGH);
+        recordResponse(isCorrect, letter) {
+            const latency = (Date.now() - this.lastPromptTime) / 1000; // Latency in seconds
+            if (!this.errorRates[letter]) {
+            this.errorRates[letter] = { attempts: 0, errors: 0 };
+        }
 
- Serial.begin(9600 );
- //Serial.println("Initialize MPU6050");
-}
+            this.errorRates[letter].attempts++;
+            if (!isCorrect) {
+                this.errorRates[letter].errors++;
+            }
+            this.attemptHistory.unshift({
+                letter: letter.toUpperCase(),
+                time: latency ,
+                correct: isCorrect,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            });
+            if (this.attemptHistory.length > 5) this.attemptHistory.pop();
+        }
 
-void loop()
-{
-    if (Serial.available() > 0) {
-    char received = Serial.read();
-    
-    switch(received) {
-      case '1': vibrateFinger(m1, 2000); break;
-      case '2': vibrateFinger(m2, 2000); break;
-      case '3': vibrateFinger(m3, 2000); break;
-      case '4': vibrateFinger(m4, 2000); break;
-      case '5': vibrateFinger(m5, 2000); break;
-      case '6': vibrateFinger(m6, 2000); break;
-      case 'X': 
-        digitalWrite(m1, LOW);
-        digitalWrite(m2, LOW);
-        digitalWrite(m3, LOW);
-        digitalWrite(m4, LOW);
-        digitalWrite(m5, LOW);
-        digitalWrite(m6, LOW);
-        break;
+        // New: Record test attempt for a specific word
+        recordTestAttempt(word, letter, isCorrect) {
+            // Find the word in test results or create new entry
+            let wordResult = this.testResults.find(w => w.word === word);
+            if (!wordResult) {
+                wordResult = {
+                    word: word,
+                    attempts: [],
+                    correctCount: 0,
+                    incorrectCount: 0,
+                    letters: []
+                };
+                this.testResults.push(wordResult);
+            }
+           
+            const letterEntry = {
+                letter: letter.toUpperCase(),
+                correct: isCorrect,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            };
+           
+            wordResult.attempts.push(letterEntry);
+            wordResult.letters.push(letterEntry);
+           
+            if (isCorrect) {
+                wordResult.correctCount++;
+            } else {
+                wordResult.incorrectCount++;
+            }
+        }
+
+        getErrorRate(letter) {
+            const rateInfo = this.errorRates[letter.toLowerCase()];
+            if (!rateInfo || rateInfo.attempts === 0) return { rate: 0, attempts: 0, errors: 0 };
+            return {
+                rate: (rateInfo.errors / rateInfo.attempts) * 100,
+                attempts: rateInfo.attempts,
+                errors: rateInfo.errors
+            };
+        }
+       
+        getFocusAreas() {
+            return Object.entries(this.errorRates)
+                .map(([letter, data]) => ({ letter, ...data, errorRate: data.attempts > 0 ? (data.errors / data.attempts) * 100 : 0 }))
+                .filter(item => item.errors > 0)
+                .sort((a, b) => b.errorRate - a.errorRate)
+                .slice(0, 3);
+        }
+
+        // New: Get test statistics
+        getTestStatistics() {
+            return this.testResults;
+        }
+
+        // New: Clear test results
+        clearTestResults() {
+            this.testResults = [];
+        }
+
+        saveToCSV() {
+            if (this.attemptHistory.length === 0) {
+                alert("No session data to export.");
+                return;
+            }
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Timestamp,Letter,IsCorrect,ResponseTime(s)\r\n"; // Header
+
+            this.attemptHistory.forEach(attempt => {
+                const row = `${attempt.timestamp},${attempt.letter},${attempt.correct},${attempt.time.toFixed(2)}`;
+                csvContent += row + "\r\n";
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `wayv_session_${this.sessionId}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
     }
-  }
-  flex6=analogRead(adc1);
-  flex5=analogRead(adc2);
-  flex4=analogRead(adc3);
-  flex1=analogRead(adc4);
-  flex2=analogRead(adc5);
-  flex3=analogRead(adc6);
-  delay(10);
-//  ff();
-  swt=digitalRead(mod);
-  if(swt==LOW)
-  {
-   digitalWrite(ledd,HIGH);
-   single();
-  }
-  else
-  {
-   digitalWrite(ledd,LOW);
-   if((flex1>900)&&(flex2>900)&&(flex3>900)&&(flex4>900)&&(flex5>900)&&(flex6>900))
-   {
-    digitalWrite(buzzer,HIGH);
-    digitalWrite(m1,HIGH);
-    digitalWrite(m2,HIGH);
-    digitalWrite(m3,HIGH);
-    digitalWrite(m4,HIGH);
-    digitalWrite(m5,HIGH);
-    digitalWrite(m6,HIGH);
-   Serial.println("");
-  }
-  
-  // else if((flex1>900)&&(flex3>900)&&(flex4>900)&&(flex5>900)&&(flex6>900))
-  // {
-  //  Serial.print("y");digitalWrite(buzzer,HIGH);
-  //  digitalWrite(m1,HIGH);
-  //   digitalWrite(m3,HIGH);
-  //   digitalWrite(m4,HIGH);
-  //   digitalWrite(m5,HIGH);
-  //   digitalWrite(m6,HIGH);
-  // }
-  
-  // else if((flex1>900)&&(flex2>900)&&(flex3>900)&&(flex4>900)&&(flex5>900))
-  // {
-  //  Serial.print("q");digitalWrite(buzzer,HIGH);
-  //  digitalWrite(m1,HIGH);
-  //   digitalWrite(m2,HIGH);
-  //   digitalWrite(m3,HIGH);
-  //   digitalWrite(m4,HIGH);
-  //   digitalWrite(m5,HIGH);
-  // }
 
-  // else if((flex1>900)&&(flex3>900)&&(flex5>900)&&(flex6>900))
-  // {
-  //  Serial.print("z");digitalWrite(buzzer,HIGH);
-  //  digitalWrite(m1,HIGH);
-  //   digitalWrite(m3,HIGH);
-  //   digitalWrite(m5,HIGH);
-  //   digitalWrite(m6,HIGH);
-  // }
+    class EnhancedBrailleTeacher {
+        constructor() {
+            // State and Hardware
+            this.port = null;
+            this.writer = null;
+            this.reader = null;
+            this.promptTimeout = null;
+            this.lastProcessedGesture = null;
 
-  // else if((flex1>900)&&(flex3>900)&&(flex4>900)&&(flex6>900))
-  // {
-  //  Serial.print("x");digitalWrite(buzzer,HIGH);
-  //  digitalWrite(m1,HIGH);
-  //   digitalWrite(m3,HIGH);
-  //   digitalWrite(m4,HIGH);
-  //   digitalWrite(m6,HIGH);
-  // }
+            // Session and Mode Control
+            this.mode = "learning"; // Default mode
+            this.isPaused = false;
+            this.recognition = null;
+            this.sessionStartTime = null;
+            this.sessionTimerInterval = null;
+            this.testCompleted = false; // Track if test is completed
+            this.learningCompleted = false; // Track if learning mode is completed
+            this.practiceCompleted = false; // Track if practice mode is completed
+           
+            // Data & Gamification
+            this.dataCollector = new DataCollector();
+            this.correctStreak = 0;
+            this.bestStreak = 0;
+            this.correctInputs = 0;
+            this.totalInputs = 0;
+            this.masteredLetters = new Set();
+           
+            // Content
+            // this.alphabet = ["a", "b", "c", "d", "e", "f","g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"];
+            this.alphabet = ["a", "b", "c", "d", "e", "f"];
+           
+            // Separate word lists for practice and test modes
+            // this.practiceWords = ["cat", "bat", "sun", "moon", "star", "tree", "ice", "bee"];
+            // this.testWords = ["cat", "bac"];
+            this.practiceWords = ["cab", "dad"];
+            this.testWords = ["ace", "fab"];           
+            this.currentLetterIndex = 0;
+            this.currentWordIndex = 0;
+            this.currentWordLetterIndex = 0;
+            this.alphabetFolds = { "a": [1], "b": [1, 2], "c": [1, 4], "d": [1, 4, 5],
+                                     "e": [1, 5], "f": [1, 2, 4], "g": [1, 2, 4, 5], 
+                                     "h": [1, 2, 5], "i": [2, 4], "j": [2, 4, 5], 
+                                     "k": [1, 3], "l": [1, 2, 3], "m": [1, 3, 4], 
+                                     "n": [1, 3, 4, 5], "o": [1, 3, 5], "p": [1, 2, 3, 4], 
+                                     "q": [1, 2, 3, 4, 5], "r": [1, 2, 3, 5], "s": [2, 3, 4], 
+                                     "t": [2, 3, 4, 5], "u": [1, 3, 6], "v": [1, 2, 3, 6], 
+                                     "w": [2, 4, 5, 6], "x": [1, 3, 4, 6], "y": [1, 3, 4, 5, 6], 
+                                     "z": [1, 3, 5, 6] };
+           
+            // MODIFICATION: Voice commands are now always on by default.
+            this.isListening = true;
 
-  // else if((flex2>900)&&(flex4>900)&&(flex5>900)&&(flex6>900))
-  // {
-  //  Serial.print("w");digitalWrite(buzzer,HIGH);
-  //   digitalWrite(m2,HIGH);
+            this.initializeUI();
+            this.initializeEventListeners();
+            this.initializeSpeechRecognition();
+           
+            // MODIFICATION: Start listening immediately on page load and inform the user.
+            if (this.isListening && this.recognition) {
+                this.recognition.start();
+                this.speak("Voice commands are active. Please connect your device to begin.");
+                document.getElementById('voice-status').textContent = 'Active';
+                document.getElementById('voice-status').style.color = '#2ecc71';
+            }
+        }
 
-  //   digitalWrite(m4,HIGH);
-  //   digitalWrite(m5,HIGH);
-  //   digitalWrite(m6,HIGH);
-  // }
-  
-  // else if((flex1>900)&&(flex2>900)&&(flex3>900)&&(flex6>900))
-  // {
-  //  Serial.print("v");digitalWrite(buzzer,HIGH);
-  //  digitalWrite(m1,HIGH);
-  //   digitalWrite(m2,HIGH);
-  //   digitalWrite(m3,HIGH);
-  //   digitalWrite(m6,HIGH);
-  // }
+        initializeUI() {
+            this.updateMasteryPath();
+            this.updateAllStats();
+        }
 
-  else if((flex2>580)&&(flex3>650)&&(flex4>850)&&(flex5>760))
-  {
-   Serial.print("t");digitalWrite(buzzer,HIGH);
- 
-    digitalWrite(m2,HIGH);
-    digitalWrite(m3,HIGH);
-    digitalWrite(m4,HIGH);
-    digitalWrite(m5,HIGH);
-  }
+        initializeEventListeners() {
+            document.getElementById("connectBtn").addEventListener("click", () => this.connectToSerial());
+            document.getElementById("modeSelect").addEventListener("change", (e) => this.switchMode(e.target.value));
+            document.getElementById("endBtn").addEventListener("click", () => this.endSession());
+            // MODIFICATION: The voice button is no longer needed to toggle functionality.
+            // It can be removed from HTML or just have its listener removed.
+            // document.getElementById("voiceBtn").addEventListener("click", () => this.toggleVoiceControl());
+            document.getElementById("downloadBtn").addEventListener("click", () => this.dataCollector.saveToCSV());
+            document.getElementById("repeatBtn").addEventListener("click", () => this.handleRepeatCommand());
+            document.getElementById("hintBtn").addEventListener("click", () => this.provideHint());
+            document.getElementById("skipBtn").addEventListener("click", () => this.skipPrompt());
+            document.getElementById("pauseResumeBtn").addEventListener("click", () => this.togglePause());
+            document.getElementById("progressBtn").addEventListener("click", () => this.handleProgressQuery());
+        }
+       
+        async endSession() {
+            // 1. Download the CSV automatically
+            this.dataCollector.saveToCSV();
 
-  // else if((flex1>900)&&(flex2>900)&&(flex3>900)&&(flex5>900))
-  // {
-  //  Serial.print("r");digitalWrite(buzzer,HIGH);
-  //  digitalWrite(m1,HIGH);
-  //   digitalWrite(m2,HIGH);
-  //   digitalWrite(m3,HIGH); 
-  //   digitalWrite(m5,HIGH);
-  // } 
+            // 2. Stop the session timer
+            if (this.sessionTimerInterval) clearInterval(this.sessionTimerInterval);
 
-  // else if((flex1>900)&&(flex2>900)&&(flex3>900)&&(flex4>900))
-  // {
-  //  Serial.print("p");digitalWrite(buzzer,HIGH);
-  //  digitalWrite(m1,HIGH);
-  //   digitalWrite(m2,HIGH);
-  //   digitalWrite(m3,HIGH);
-  //   digitalWrite(m4,HIGH);
-  // }
+            // 3. Close Serial Connection if it exists
+            try {
+                if (this.reader) {
+                    await this.reader.cancel();
+                    this.reader.releaseLock();
+                }
+                if (this.writer) {
+                    this.writer.releaseLock();
+                }
+                if (this.port) {
+                    await this.port.close();
+                }
+            } catch (e) {
+                console.log("Connection cleanup:", e);
+            }
 
-  // else if((flex1>900)&&(flex3>900)&&(flex4>900)&&(flex5>900))
-  // {
-  //  Serial.print("n");digitalWrite(buzzer,HIGH);
-  //  digitalWrite(m1,HIGH);
-  //   digitalWrite(m3,HIGH);
-  //   digitalWrite(m4,HIGH);
-  //   digitalWrite(m5,HIGH);
-   
-  // }
+            // 4. Reset Class State
+            this.port = null;
+            this.writer = null;
+            this.reader = null;
+            this.isPaused = false;
+            this.currentLetterIndex = 0;
+            this.masteredLetters = new Set();
+            this.correctInputs = 0;
+            this.totalInputs = 0;
+            this.testCompleted = false;
+            this.learningCompleted = false;
+            this.practiceCompleted = false;
+            this.dataCollector.clearTestResults();
+           
+            // 5. Reset UI to initial state
+            document.getElementById('connectionStatus').textContent = '● Disconnected';
+            document.getElementById('connectionStatus').className = 'disconnected';
+            document.getElementById('sessionTime').textContent = 'Session: 00m 00s';
+            document.getElementById('current-word-display').textContent = '-';
+            this.updateAllStats();
+            this.updateMasteryPath();
 
-  // else if((flex1>900)&&(flex2>900)&&(flex4>900)&&(flex5>900))
-  // {
-  //  Serial.print("g");digitalWrite(buzzer,HIGH);
-  //  digitalWrite(m1,HIGH);
-  //   digitalWrite(m2,HIGH);
-  //   digitalWrite(m4,HIGH);
-  //   digitalWrite(m5,HIGH);
-  // }
+            // 6. Voice prompt for the user to reconnect
+            this.speak("Session ended. Data has been exported. Please connect your device again to start a new session.");
+        }
+       
+        async connectToSerial() {
+            try {
+                this.port = await navigator.serial.requestPort();
+                await this.port.open({ baudRate: 9600 });
+                this.writer = this.port.writable.getWriter();
+                this.reader = this.port.readable.getReader();
 
-   else if((flex1>910)&&(flex4>680)&&(flex5>955))
-  {
-   Serial.print("d");digitalWrite(buzzer,HIGH);
-   digitalWrite(m1,HIGH);
-    digitalWrite(m4,HIGH);
-    digitalWrite(m5,HIGH);
-  }
-  
-  else if((flex1>910)&&(flex2>900)&&(flex4>615))
-  {
-   Serial.print("f");digitalWrite(buzzer,HIGH);
-   digitalWrite(m1,HIGH);
-    digitalWrite(m2,HIGH);
+                document.getElementById('connectionStatus').textContent = '● Connected';
+                document.getElementById('connectionStatus').className = 'connected';
+                this.sessionStartTime = Date.now();
+                this.startSessionTimer();
+               
+                // MODIFICATION: New, streamlined introduction flow as requested.
+                await this.speak("Device connected. Voice commands are active.");
+                await this.playIntroduction();
+                // await this.speak("Let's start with learning mode.");
+               
+                this.readSerialLoop(); // Start listening for glove input
+                this.nextPrompt();     // Give the first prompt ('A')
 
-    digitalWrite(m4,HIGH);
+            } catch (error) {
+                console.error(`Connection failed: ${error}`);
+                this.speak("There was an error connecting to the device.");
+            }
+        }
 
-  }
-  
-  // else if((flex1>900)&&(flex2>900)&&(flex5>900))
-  // {
-  //  Serial.print("h");digitalWrite(buzzer,HIGH);
-  //  digitalWrite(m1,HIGH);
-  //   digitalWrite(m2,HIGH);
+        async playIntroduction() {
+            const fingers = [
+                { num: 1, desc: "left ring finger" }, { num: 2, desc: "left middle finger" },
+                { num: 3, desc: "left index finger" }, { num: 4, desc: "right index finger" },
+                { num: 5, desc: "right middle finger" }, { num: 6, desc: "right ring finger" }
+            ];
+            await this.speak("Let me introduce the finger mappings.");
+            for (const finger of fingers) {
+                await this.speak(`Finger ${finger.num} is your ${finger.desc}.`);
+                await this.writeToSerial(String(finger.num));
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            await this.speak("Introduction complete.");
+        }        
 
-  //   digitalWrite(m5,HIGH);
+        async writeToSerial(data) {
+            if (this.writer) {
+                try {
+                    const encoder = new TextEncoder();
+                    await this.writer.write(encoder.encode(data));
+                } catch (error) {
+                    console.error("Error writing to serial port:", error);
+                }
+            }
+        }
 
-  // }
-  
-  // else if((flex2>900)&&(flex4>900)&&(flex5>900))
-  // {
-  //  Serial.print("j");digitalWrite(buzzer,HIGH);
-  //   digitalWrite(m2,HIGH);
-   
-  //   digitalWrite(m4,HIGH);
-  //   digitalWrite(m5,HIGH);
-   
-  // }
+        async readSerialLoop() {
+            const decoder = new TextDecoder();
+            try {
+                while (true) {
+                    const { value, done } = await this.reader.read();
+                    if (done) break;
+                    const cleanValue = decoder.decode(value).replace(/[\r\n]/g, '');
+                    if (cleanValue) this.handleBrailleInput(cleanValue);
+                }
+            } catch (error) { console.error(`Error reading data: ${error}`); }
+        }
 
-  // else if((flex1>900)&&(flex2>900)&&(flex3>900))
-  // {
-  //  Serial.print("l");digitalWrite(buzzer,HIGH);
-  //  digitalWrite(m1,HIGH);
-  //   digitalWrite(m2,HIGH);
-  //   digitalWrite(m3,HIGH);
-   
-  // }
+        nextPrompt() {
+            if (this.isPaused) return;
+            if (this.mode === 'test' && this.testCompleted) {
+                return; // Don't give prompts if test is completed
+            }
+           
+            let letter;
+            let currentWordList;
 
+            if (this.mode === 'learning') {
+                // Check if learning mode is completed
+                if (this.learningCompleted) {
+                    this.speak("Learning mode completed! Now switching to practice mode.In this mode you will practice 3 letter words with the letters you have already learnt.");
+                    this.switchMode('practice');
+                    return;
+                }
+                letter = this.alphabet[this.currentLetterIndex];
+                document.getElementById('current-word-display').textContent = 'A-Z Path';
+            } else if (this.mode === 'practice') {
+                // Check if practice mode is completed
+                if (this.practiceCompleted) {
+                    this.speak("Practice mode completed! Now switching to test mode.In this mode you will be examined on 3 letter words and you wont recieve any corrcetive feedback on your answers.Once you complete the test you will get the results.Good luck!");
+                    this.switchMode('test');
+                    return;
+                }
+                currentWordList = this.practiceWords;
+                const word = currentWordList[this.currentWordIndex];
+                letter = word[this.currentWordLetterIndex];
+                document.getElementById('current-word-display').textContent = word.toUpperCase();
+            } else if (this.mode === 'test') {
+                if (this.currentWordIndex >= this.testWords.length) {
+                    // Test is completed
+                    this.testCompleted = true;
+                    this.speak("Congratulations! The test is complete.");
+                    document.getElementById('current-word-display').textContent = 'Test Complete';
+                    // Report test results
+                    setTimeout(() => this.reportTestResults(), 2000);
+                    return;
+                }
+                currentWordList = this.testWords;
+                const word = currentWordList[this.currentWordIndex];
+                letter = word[this.currentWordLetterIndex];
+                document.getElementById('current-word-display').textContent = word.toUpperCase();
+            }
 
-  // else if((flex1>900)&&(flex3>900)&&(flex4>900))
-  // {
-  //  Serial.print("m");digitalWrite(buzzer,HIGH);
-  //  digitalWrite(m1,HIGH);
-  
-  //   digitalWrite(m3,HIGH);
-  //   digitalWrite(m4,HIGH);
-  
-  // }
-  
-  // else if((flex1>900)&&(flex3>900)&&(flex5>900))
-  // {
-  //  Serial.print("o");digitalWrite(buzzer,HIGH);
-  //  digitalWrite(m1,HIGH);
-   
-  //   digitalWrite(m3,HIGH);
-   
-  //   digitalWrite(m5,HIGH);
-   
-  // }
-  
-  // else if((flex2>900)&&(flex3>900)&&(flex4>900))
-  // {
-  //  Serial.print("s");digitalWrite(buzzer,HIGH);
-   
-  //   digitalWrite(m2,HIGH);
-  //   digitalWrite(m3,HIGH);
-  //   digitalWrite(m4,HIGH);
-    
-  // }
-  
-  // else if((flex1>900)&&(flex3>900)&&(flex6>900))
-  // {
-  //  Serial.print("u");digitalWrite(buzzer,HIGH);
-  //  digitalWrite(m1,HIGH);
-    
-  //   digitalWrite(m3,HIGH);
-    
-  //   digitalWrite(m6,HIGH);
-  // }
+            this.updateBraillePatternDisplay(letter);
+            this.dataCollector.startNewAttempt(letter);
+           
+            if (this.mode === 'learning') {
+                const fingers = this.alphabetFolds[letter];
+                this.speakWithVibration(`For ${letter.toUpperCase()}, fold ${fingers.join(' and ')}.`, fingers);
+            } else if (this.mode === 'practice') {
+                const fingers = this.alphabetFolds[letter];
+                const word = this.practiceWords[this.currentWordIndex];
+               
+                if (this.currentWordLetterIndex === 0) {
+                    // First letter of the word: Announce the word first
+                    this.speak(`Your word is ${word.toUpperCase()}. For ${letter.toUpperCase()}, fold ${fingers.join(' and ')}.`)
+                        .then(() => {
+                            // Send vibration haptics after speech is complete
+                            if (fingers && fingers.length > 0) {
+                                fingers.forEach((finger, i) => {
+                                    setTimeout(() => this.writeToSerial(String(finger)), i * 150);
+                                });
+                            }
+                        });
+                } else {
+                    // Subsequent letters: Just announce the finger mapping
+                    this.speakWithVibration(`For ${letter.toUpperCase()}, fold ${fingers.join(' and ')}.`, fingers);
+                }
+            } else if (this.mode === 'test') {
+                // Test mode: Only announce letter without finger mapping
+                const word = this.testWords[this.currentWordIndex];
+                if (this.currentWordLetterIndex === 0) {
+                    this.speak(`Your word is ${word.toUpperCase()}. Enter ${letter.toUpperCase()}.`);
+                } else {
+                    this.speak(`Enter ${letter.toUpperCase()}.`);
+                }
+            }
+           
+            this.updateMasteryPath();
+        }
 
-  else if((flex3>900)&&(flex4>900))
-  {
-   Serial.print(" ");digitalWrite(buzzer,HIGH);
-   
-    digitalWrite(m3,HIGH);
-    digitalWrite(m4,HIGH);
-   
-  }
+        handleBrailleInput(data) {
+            if (this.isPaused || !data || this.testCompleted) return;
+            if (data === this.lastProcessedGesture) {return;} // Ignore duplicate gestures
+            this.lastProcessedGesture = data;
 
-  else if((flex1>910)&&(flex2>640))
-  {
-   Serial.print("b");digitalWrite(buzzer,HIGH);
-   digitalWrite(m1,HIGH);
-    digitalWrite(m2,HIGH);
-  }
-  
-  else if((flex1>910)&&(flex4>775))
-  {
-   Serial.print("c");digitalWrite(buzzer,HIGH);
-   digitalWrite(m1,HIGH);
-    digitalWrite(m4,HIGH);
-  }
+            if (this.promptTimeout) {
+                clearTimeout(this.promptTimeout);
+            }        
+            this.totalInputs++;
+            let currentLetter;
+            let currentWordList;
+            let currentWord = '';
+           
+            if (this.mode === 'learning') {
+                currentLetter = this.alphabet[this.currentLetterIndex];
+            } else if (this.mode === 'practice') {
+                currentWordList = this.practiceWords;
+                currentWord = currentWordList[this.currentWordIndex];
+                currentLetter = currentWord[this.currentWordLetterIndex];
+            } else if (this.mode === 'test') {
+                if (this.currentWordIndex >= this.testWords.length) {
+                    // Test is completed, don't process input
+                    return;
+                }
+                currentWordList = this.testWords;
+                currentWord = currentWordList[this.currentWordIndex];
+                currentLetter = currentWord[this.currentWordLetterIndex];
+            }
 
-  else if((flex1>910)&&(flex5>955))
-  {
-   Serial.print("e");digitalWrite(buzzer,HIGH);
-   digitalWrite(m1,HIGH);
-    digitalWrite(m5,HIGH);
-  }
-  // else if((flex1>900)&&(flex3>900))
-  // {
-  //  Serial.print("k");digitalWrite(buzzer,HIGH);
-  //  digitalWrite(m1,HIGH);
-  //   digitalWrite(m3,HIGH);
-  // }
-  // else if((flex2>900)&&(flex4>900))
-  // {
-  //  Serial.print("i");digitalWrite(buzzer,HIGH);
-  //  digitalWrite(m2,HIGH);
-  //  digitalWrite(m4,HIGH);
-  // }
-  else if(flex1>910)  
-  {
-   Serial.print("a");analogWrite(buzzer,80);
-   digitalWrite(m1,HIGH); 
-  }
-  else
-  {
-   digitalWrite(buzzer,LOW);
-   digitalWrite(m1,LOW);
-   digitalWrite(m2,LOW);
-   digitalWrite(m3,LOW);
-   digitalWrite(m4,LOW);
-   digitalWrite(m5,LOW);
-   digitalWrite(m6,LOW);
+            // MODIFICATION: Added console log for easier debugging of glove input.
+            console.log(`Received: '${data}', Expected: '${currentLetter}'`);
 
-  }
-  delay(100);
- }
-  delay(100);
+            const receivedChar = data.trim().toLowerCase().charAt(0);
+            const isCorrect = receivedChar === currentLetter;            
+            this.dataCollector.recordResponse(isCorrect, currentLetter);
+           
+            // Record test attempt if in test mode
+            if (this.mode === 'test') {
+                this.dataCollector.recordTestAttempt(currentWord, currentLetter, isCorrect);
+            }
+
+            if (isCorrect) {
+                this.correctInputs++;
+                this.correctStreak++;
+                if (this.correctStreak > this.bestStreak) this.bestStreak = this.correctStreak;
+                this.handleCorrectAnswer(currentLetter);
+            } else {
+                this.correctStreak = 0;
+                if (this.mode === 'practice') {
+                    this.speak("Not quite. Let's try that letter again.");
+                    this.promptTimeout = setTimeout(() => this.nextPrompt(), 1200);
+                } else if (this.mode === 'learning') {
+                    this.speak("Not quite. Let's try that letter again.");
+                    this.promptTimeout = setTimeout(() => this.nextPrompt(), 1200);
+                } else if (this.mode === 'test') {
+                    // In test mode, don't repeat - move to next letter immediately
+                    this.handleTestWrongAnswer();
+                }
+            }
+            this.updateAllStats();
+        }
+
+        handleCorrectAnswer(letter) {
+            const { attempts } = this.dataCollector.getErrorRate(letter);
+            if (attempts <= 2 && this.mode === 'learning') {
+                this.masteredLetters.add(letter);
+            }
+           
+            if (this.mode !== 'test') { // Don't say "Correct!" in test mode
+                this.speak("Correct!");
+            }
+
+            if (this.mode === 'learning') {
+                this.currentLetterIndex++;
+                // Check if learning mode is completed
+                if (this.currentLetterIndex >= this.alphabet.length) {
+                    this.learningCompleted = true;
+                } else {
+                    this.currentLetterIndex = this.currentLetterIndex % this.alphabet.length;
+                }
+            } else if (this.mode === 'practice') {
+                this.currentWordLetterIndex++;
+                if (this.currentWordLetterIndex >= this.practiceWords[this.currentWordIndex].length) {
+                    this.speak(`Excellent! You spelled ${this.practiceWords[this.currentWordIndex]}.`);
+                    this.currentWordLetterIndex = 0;
+                    this.currentWordIndex++;
+                   
+                    // Check if practice mode is completed
+                    if (this.currentWordIndex >= this.practiceWords.length) {
+                        this.practiceCompleted = true;
+                    } else {
+                        this.currentWordIndex = this.currentWordIndex % this.practiceWords.length;
+                        setTimeout(() => this.speak(`Your next word is ${this.practiceWords[this.currentWordIndex]}.`), 1000);
+                    }
+                }
+            } else if (this.mode === 'test') {
+                this.currentWordLetterIndex++;
+                if (this.currentWordLetterIndex >= this.testWords[this.currentWordIndex].length) {
+                    // Word completed in test mode
+                    const completedWord = this.testWords[this.currentWordIndex];
+                    this.currentWordIndex++;
+                    this.currentWordLetterIndex = 0;
+                   
+                    // ADDED: Announce word completion
+                    if (this.currentWordIndex < this.testWords.length) {
+                        // There are more words - announce completion and next word
+                        setTimeout(() => {
+                            const nextWord = this.testWords[this.currentWordIndex];
+                            this.speak(`Word "${completedWord.toUpperCase()}" completed. The next word is "${nextWord.toUpperCase()}". Enter ${nextWord[0].toUpperCase()}.`);
+                        }, 800);
+                    }
+                   
+                    if (this.currentWordIndex >= this.testWords.length) {
+                        // All test words are completed
+                        this.testCompleted = true;
+                        this.speak("Congratulations! The test is complete.");
+                        // Report test results
+                        setTimeout(() => this.reportTestResults(), 2000);
+                        return;
+                    } else {
+                        // Move to next word
+                        setTimeout(() => {
+                            if (this.mode === 'test') {
+                                this.nextPrompt();
+                            }
+                        }, 2000); // Increased delay to allow announcement
+                        return;
+                    }
+                }
+            }
+           
+            this.promptTimeout = setTimeout(() => this.nextPrompt(), 1200);
+        }
+
+        handleTestWrongAnswer() {
+            // In test mode, wrong answer - move to next letter
+            this.currentWordLetterIndex++;
+           
+            if (this.currentWordLetterIndex >= this.testWords[this.currentWordIndex].length) {
+                // Word completed (even with errors)
+                const completedWord = this.testWords[this.currentWordIndex];
+                this.currentWordIndex++;
+                this.currentWordLetterIndex = 0;
+               
+                // ADDED: Announce word completion
+                if (this.currentWordIndex < this.testWords.length) {
+                    // There are more words - announce completion and next word
+                    setTimeout(() => {
+                        const nextWord = this.testWords[this.currentWordIndex];
+                        this.speak(`Word "${completedWord.toUpperCase()}" completed. The next word is "${nextWord.toUpperCase()}". Enter ${nextWord[0].toUpperCase()}.`);
+                    }, 800);
+                }
+               
+                if (this.currentWordIndex >= this.testWords.length) {
+                    // All test words are completed
+                    this.testCompleted = true;
+                    this.speak("Congratulations! The test is complete.");
+                    // Report test results
+                    setTimeout(() => this.reportTestResults(), 2000);
+                    return;
+                } else {
+                    // Move to next word
+                    setTimeout(() => {
+                        if (this.mode === 'test') {
+                            this.nextPrompt();
+                        }
+                    }, 2000); // Increased delay to allow announcement
+                    return;
+                }
+            }
+           
+            this.promptTimeout = setTimeout(() => this.nextPrompt(), 1000);
+        }
+
+        // New: Report test results
+        reportTestResults() {
+            const testStats = this.dataCollector.getTestStatistics();
+            let report = "Test results: ";
+           
+            if (testStats.length === 0) {
+                report += "No test data available.";
+            } else {
+                testStats.forEach((wordResult, index) => {
+                    report += `For word ${wordResult.word.toUpperCase()}, you entered `;
+                   
+                    const letterReports = [];
+                    wordResult.letters.forEach(letterEntry => {
+                        if (letterEntry.correct) {
+                            letterReports.push(`${letterEntry.letter} correct`);
+                        } else {
+                            letterReports.push(`${letterEntry.letter} incorrect`);
+                        }
+                    });
+                   
+                    report += letterReports.join(', ') + `. `;
+                    report += `That's ${wordResult.correctCount} correct and ${wordResult.incorrectCount} incorrect. `;
+                });
+               
+                // Add overall accuracy
+                const totalCorrect = testStats.reduce((sum, word) => sum + word.correctCount, 0);
+                const totalLetters = testStats.reduce((sum, word) => sum + word.letters.length, 0);
+                const overallAccuracy = totalLetters > 0 ? (totalCorrect / totalLetters * 100).toFixed(0) : 0;
+                report += `Overall test accuracy: ${overallAccuracy} percent. `;
+               
+                // Add encouragement
+                if (overallAccuracy >= 80) {
+                    report += "Excellent work!";
+                } else if (overallAccuracy >= 60) {
+                    report += "Good job! Keep practicing.";
+                } else {
+                    report += "Keep practicing to improve your skills.";
+                }
+            }
+           
+            this.speak(report);
+        }
+
+        // --- VOICE AND BUTTON COMMANDS ---
+        initializeSpeechRecognition() {
+            if ('webkitSpeechRecognition' in window) {
+                this.recognition = new webkitSpeechRecognition();
+                this.recognition.continuous = true;
+               
+                // FIX 1: Enable interim results to see low-confidence guesses.
+                // This lets us see what the engine is "thinking" in real-time.
+                this.recognition.interimResults = true;
+               
+                this.recognition.lang = 'en-US';
+
+                this.recognition.onresult = (event) => {
+                    // We now loop through the results because interim results can have multiple parts.
+                    let final_transcript = '';
+                    for (let i = event.resultIndex; i < event.results.length; ++i) {
+                        if (event.results[i].isFinal) {
+                            final_transcript += event.results[i][0].transcript;
+                        }
+                    }
+                   
+                    const command = final_transcript.trim().toLowerCase();
+                    if (command) { // Only process if we have a final command
+                        console.log("Final command received:", command);
+                        this.handleVoiceCommand(command);
+                    }
+                };
+
+                this.recognition.onerror = (event) => {
+                    console.error('Speech recognition error:', event.error);
+                };
+               
+                this.recognition.onend = () => {
+                    // This will restart the recognition service if it stops.
+                    if (this.isListening) {
+                        console.log("[Speech engine] Service ended, restarting...");
+                        this.recognition.start();
+                    }
+                };
+
+                // FIX 2: Add more diagnostic event listeners.
+                this.recognition.onstart = () => {
+                    console.log("[Speech engine] Recognition service started.");
+                };
+
+                this.recognition.onaudiostart = () => {
+                    console.log("[Speech engine] Audio capture started.");
+                };
+               
+                this.recognition.onsoundstart = () => {
+                    console.log("[Speech engine] Sound detected.");
+                };
+               
+                this.recognition.onspeechstart = () => {
+                    console.log("[Speech engine] Speech detected.");
+                };
+               
+                this.recognition.onspeechend = () => {
+                    console.log("[Speech engine] Speech ended.");
+                };
+               
+                this.recognition.onaudioend = () => {
+                    console.log("[Speech engine] Audio capture ended.");
+                };
+
+                // This event is crucial. It fires when speech is detected but not recognized.
+                this.recognition.onnomatch = () => {
+                    console.warn("[Speech engine] Speech detected, but no match found (low confidence).");
+                };            } else {
+                console.warn("Speech Recognition API not supported in this browser.");
+            }
+        }
+       
+        handleVoiceCommand(command) {
+            // MODIFICATION: Added test mode command
+            if (command.includes("learning") || command.includes("learning mode")) {
+                this.speak("Switching to learning mode.");
+                this.switchMode("learning");
+            } else if (command.includes("practice") || command.includes("practice mode")) {
+                this.speak("Switching to practice mode.");
+                this.switchMode("practice");
+            } else if (command.includes("test") || command.includes("test mode")) {
+                this.speak("Switching to test mode.");
+                this.switchMode("test");
+            } else if (command.includes("accuracy") || command.includes("how am i doing") || command.includes("progress")) {
+                this.handleProgressQuery();
+            } else if (command.includes("repeat") || command.includes("again")) {
+                this.handleRepeatCommand();
+            } else if (command.includes("remaining") || command.includes("left")) {
+                this.handleRemainingQuery();
+            } else if (command.includes("hint") || command.includes("clue")) {
+                this.provideHint();
+            } else if (command.includes("skip") || command.includes("next")) {
+                if (this.mode === 'test') {
+                    this.speak("Skipping is not allowed in test mode.");
+                } else {
+                    this.skipPrompt();
+                }
+            } else if (command.includes("pause") || command.includes("stop")) {
+                if (!this.isPaused) this.togglePause();
+            } else if (command.includes("resume") || command.includes("continue") || command.includes("start")) {
+                if (this.isPaused) this.togglePause();
+            }
+        }
+
+        togglePause() {
+            if (this.mode === 'test') {
+                this.speak("Pausing is not allowed in test mode.");
+                return;
+            }
+            this.isPaused = !this.isPaused;
+            const button = document.getElementById('pauseResumeBtn');
+            if (this.isPaused) {
+                button.textContent = 'Resume';
+                this.speak("Session paused.");
+            } else {
+                button.textContent = 'Pause';
+                this.speak("Resuming session.");
+                this.nextPrompt(); // Restart the prompt cycle
+            }
+        }
+
+        handleProgressQuery() {
+            const accuracy = this.totalInputs > 0 ? (this.correctInputs / this.totalInputs * 100) : 0;
+            let report = `Your current accuracy is ${accuracy.toFixed(0)} percent. `;
+            const focus = this.dataCollector.getFocusAreas();
+            if (focus.length > 0) {
+                report += `You might want to focus a little more on letters like ${focus.map(f => f.letter.toUpperCase()).join(', ')}. `;
+            }
+            report += "You're doing a great job!";
+            this.speak(report);
+        }
+
+        handleRepeatCommand() {
+            if (this.mode === 'test') {
+                // In test mode, just repeat the current instruction without extra speech
+                this.nextPrompt();
+            } else {
+                this.speak("Repeating the instruction.");
+                // nextPrompt uses the current index, so calling it again repeats the prompt
+                this.nextPrompt();
+            }
+        }
+
+        handleRemainingQuery() {
+            if (this.mode !== 'learning') {
+                this.speak("This command is only available in learning mode.");
+                return;
+            }
+            const remaining = this.alphabet.length - this.masteredLetters.size;
+            this.speak(`You have ${remaining} letters left to master. Keep going!`);
+        }
+       
+        provideHint() {
+            if (this.mode === 'test') {
+                this.speak("Hints are not available in test mode.");
+                return;
+            }
+            const letter = this.mode === 'learning' ? this.alphabet[this.currentLetterIndex] :
+                          this.mode === 'practice' ? this.practiceWords[this.currentWordIndex][this.currentWordLetterIndex] :
+                          this.testWords[this.currentWordIndex][this.currentWordLetterIndex];
+            const fingers = this.alphabetFolds[letter];
+            this.speakWithVibration(`Hint: For ${letter.toUpperCase()}, fold ${fingers.join(' and ')}.`, fingers);
+        }
+
+        skipPrompt() {
+            if (this.mode === 'test') {
+                this.speak("Skipping is not allowed in test mode.");
+                return;
+            }
+            this.speak("Skipping to the next one.");
+            if (this.mode === 'learning') {
+                this.currentLetterIndex = (this.currentLetterIndex + 1) % this.alphabet.length;
+            } else if (this.mode === 'practice') {
+                this.currentWordLetterIndex++;
+                if (this.currentWordLetterIndex >= this.practiceWords[this.currentWordIndex].length) {
+                    this.currentWordLetterIndex = 0;
+                    this.currentWordIndex = (this.currentWordIndex + 1) % this.practiceWords.length;
+                }
+            }
+            this.nextPrompt();
+        }
+       
+        // --- UTILITY AND UI UPDATE FUNCTIONS ---
+        async switchMode(newMode) {
+            if (this.mode === newMode) {
+                this.speak(`You are already in ${newMode} mode.`);
+                return;
+            }
+            await this.speak(`Switching to ${newMode} mode.`);
+            this.mode = newMode;
+            this.testCompleted = false; // Reset test completion flag when switching modes
+           
+            // Clear test results when switching to test mode
+            if (newMode === 'test') {
+                this.dataCollector.clearTestResults();
+            }
+           
+            document.getElementById('modeSelect').value = newMode;
+            // Reset progress counters for a clean switch
+            this.currentLetterIndex = 0;
+            this.currentWordIndex = 0;
+            this.currentWordLetterIndex = 0;
+            this.nextPrompt();
+        }
+
+        speakWithVibration(text, fingers) {
+            this.speak(text).then(() => {
+                // Send vibration haptics after speech is complete
+                if (fingers && fingers.length > 0) {
+                    fingers.forEach((finger, i) => {
+                        setTimeout(() => this.writeToSerial(String(finger)), i * 150);
+                    });                    
+            setTimeout(() => {
+
+                setTimeout(() => this.writeToSerial('B'), 300);
+            }, (fingers.length - 1) * 150 + 2000); // This is the key!
+        }
+    });
 }
 
-void ff()
-{
- Serial.print(flex1);
- Serial.print("-");
- Serial.print(flex2);
- Serial.print("-");
- Serial.print(flex3);
- Serial.print("-");
- Serial.print(flex4);
- Serial.print("-");
- Serial.print(flex5);
- Serial.print("-");
- Serial.println(flex6);  
-}
+        updateAllStats() {
+            const accuracy = this.totalInputs > 0 ? (this.correctInputs / this.totalInputs * 100) : 0;
+            const history = this.dataCollector.attemptHistory;
+            const totalTime = history.reduce((sum, item) => sum + item.time, 0);
+            const avgTime = history.length > 0 ? totalTime / history.length : 0;
 
-void single()
-{
-  if(flex1>900)  
-  {
-   digitalWrite(m1,HIGH); 
-  }
-  else
-  {
-   digitalWrite(m1,LOW);
-  }
-  if(flex2>900)  
-  {
-   digitalWrite(m2,HIGH); 
-  }
-  else
-  {
-   digitalWrite(m2,LOW);
-  }
-  if(flex3>900)  
-  {
-   digitalWrite(m3,HIGH); 
-  }
-  else
-  {
-   digitalWrite(m3,LOW);
-  }
-  if(flex4>900)  
-  {
-   digitalWrite(m4,HIGH); 
-  }
-  else
-  {
-   digitalWrite(m4,LOW);
-  }
-  if(flex5>900)  
-  {
-   digitalWrite(m5,HIGH); 
-  }
-  else
-  {
-   digitalWrite(m5,LOW);
-  }
-  if(flex6>900)  
-  {
-   digitalWrite(m6,HIGH); 
-  }
-   else
-  {
-   digitalWrite(m6,LOW);
-  }
-  delay(200);
+            document.getElementById('history-accuracy').textContent = `${accuracy.toFixed(0)}%`;
+            document.getElementById('history-avg-time').textContent = `${avgTime.toFixed(1)}s`;
+            document.getElementById('history-current-streak').textContent = this.correctStreak;
+            document.getElementById('history-best-streak').textContent = this.bestStreak;
+
+            document.getElementById('progress-accuracy').textContent = `${accuracy.toFixed(1)}%`;
+            document.getElementById('progress-avg-time').textContent = `${avgTime.toFixed(1)}s`;
+            document.getElementById('progress-total-attempts').textContent = this.totalInputs;
+            document.getElementById('accuracy-progress-bar').style.width = `${accuracy}%`;
+
+            this.updateAttemptHistoryList();
+            this.updateFocusAreas();
+        }
+
+        updateBraillePatternDisplay(letter) {
+            document.getElementById('braille-char-output').textContent = letter.toUpperCase();
+            const positions = this.alphabetFolds[letter];
+            document.getElementById('active-dots').textContent = positions.join(', ');
+            for (let i = 1; i <= 6; i++) {
+                document.getElementById(`dot-${i}`).classList.toggle('active', positions.includes(i));
+            }
+        }
+       
+        updateMasteryPath() {
+            const container = document.getElementById('mastery-path-container');
+            container.innerHTML = '';
+            this.alphabet.forEach((letter, index) => {
+                const tile = document.createElement('div');
+                tile.className = 'letter-tile';
+                tile.textContent = letter.toUpperCase();
+               
+                const { attempts, errors } = this.dataCollector.getErrorRate(letter);
+
+                if (this.mode === 'learning' && index === this.currentLetterIndex) {
+                    tile.classList.add('current');
+                } else if (this.masteredLetters.has(letter)) {
+                    tile.classList.add('mastered');
+                } else if (attempts > 2 && errors > 0) {
+                    tile.classList.add('difficult');
+                } else {
+                    tile.classList.add('pending');
+                }
+                container.appendChild(tile);
+            });
+        }
+
+        updateAttemptHistoryList() {
+            const list = document.getElementById('history-list');
+            list.innerHTML = '';
+            if (this.dataCollector.attemptHistory.length === 0) {
+                 list.innerHTML = '<li class="placeholder">Connect the device to begin tracking attempts.</li>';
+                 return;
+            }
+            this.dataCollector.attemptHistory.forEach(item => {
+                const li = document.createElement('li');
+                li.className = item.correct ? 'correct' : 'incorrect';
+                li.innerHTML = `
+                    <div class="status-icon">${item.correct ? '✔' : '✖'}</div>
+                    <div class="attempt-details">Required: <strong>${item.letter}</strong><small>${item.timestamp}</small></div>
+                    <div class="attempt-time">${item.time.toFixed(1)}s</div>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        updateFocusAreas() {
+            const container = document.getElementById('focus-areas');
+            container.innerHTML = '';
+            const areas = this.dataCollector.getFocusAreas();
+            if (areas.length > 0) {
+                areas.forEach(area => {
+                    const item = document.createElement('div');
+                    item.className = 'focus-item';
+                    item.innerHTML = `<strong>${area.letter.toUpperCase()}</strong><small>${area.errors} errors in ${area.attempts} attempts</small>`;
+                    container.appendChild(item);
+                });
+            } else {
+                container.innerHTML = '<p>No specific focus areas yet. Great work!</p>';
+            }
+        }
+       
+        startSessionTimer() {
+            if (this.sessionTimerInterval) clearInterval(this.sessionTimerInterval);
+            this.sessionTimerInterval = setInterval(() => {
+                if (this.isPaused) return;
+                const elapsed = Math.floor((Date.now() - this.sessionStartTime) / 1000);
+                const minutes = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                const seconds = String(elapsed % 60).padStart(2, '0');
+                document.getElementById('sessionTime').textContent = `Session: ${minutes}m ${seconds}s`;
+            }, 1000);
+        }
+
+        speak(text) {
+            return new Promise(resolve => {
+                if ('speechSynthesis' in window) {
+                    speechSynthesis.cancel();
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.pitch = 1.2;
+                    utterance.rate = 1.1;
+                    utterance.onend = resolve;
+                    utterance.onerror = (e) => {
+                        console.error("Speech synthesis error:", e);
+                        resolve(); // Resolve promise even on error
+                    };
+                    speechSynthesis.speak(utterance);
+                } else {
+                    resolve(); // Resolve if speech synthesis is not available
+                }
+            });
+        }
+    }
+   
+    // Initialize the application
+    new EnhancedBrailleTeacher();
+
+} else {
+    alert("Web Serial API not supported. Please use a modern browser like Chrome or Edge.");
 }
