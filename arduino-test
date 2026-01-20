@@ -6,12 +6,12 @@
 #define adc6 A0
 #define buzzer 11
 #define ledd 13
-#define m1 7
-#define m2 6
-#define m3 5
-#define m4 4
-#define m5 3
-#define m6 2
+#define m1 4
+#define m2 3
+#define m3 2
+#define m4 5
+#define m5 6
+#define m6 7
 #define mod 8
 int flex2=0,flex1=0,flex3=0,flex4=0,flex5=0,flex6=0,swt;
 
