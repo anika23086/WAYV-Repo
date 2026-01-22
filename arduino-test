@@ -51,12 +51,12 @@ void loop()
     char received = Serial.read();
     
     switch(received) {
-      case '1': vibrateFinger(m1, 2000); break;
-      case '2': vibrateFinger(m2, 2000); break;
-      case '3': vibrateFinger(m3, 2000); break;
-      case '4': vibrateFinger(m4, 2000); break;
-      case '5': vibrateFinger(m5, 2000); break;
-      case '6': vibrateFinger(m6, 2000); break;
+      case '1': vibrateFinger(m1, 500); break;
+      case '2': vibrateFinger(m2, 500); break;
+      case '3': vibrateFinger(m3, 500); break;
+      case '4': vibrateFinger(m4, 500); break;
+      case '5': vibrateFinger(m5, 500); break;
+      case '6': vibrateFinger(m6, 500); break;
       case 'B': 
     // Two short beeps
     digitalWrite(buzzer, HIGH);
