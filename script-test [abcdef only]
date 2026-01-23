@@ -353,7 +353,7 @@ if ("serial" in navigator) {
                 await this.writeToSerial(String(finger.num));
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
-            await this.speak("Introduction complete. Lets start with learning mode");
+            await this.speak("Introduction complete. Your input will only be recorded after the 2 trigger beeps. Lets start with learning mode");
         }        
 
         async writeToSerial(data) {
