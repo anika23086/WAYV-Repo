@@ -227,9 +227,9 @@ if ("serial" in navigator) {
             this.masteredLetters = new Set();
            
             // Content
-            this.alphabet = ["a", "b", "c", "d", "e", "f"];
-            this.practiceWords = ["cab", "dad"];
-            this.testWords = ["ace", "fab"];           
+            this.alphabet = ["a", "b", "c", "d", "e", "f"] //, "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"];
+            this.practiceWords = ["bed", "cab"];
+            this.testWords = ["fed", "fad"];           
             this.currentLetterIndex = 0;
             this.currentWordIndex = 0;
             this.currentWordLetterIndex = 0;
@@ -343,8 +343,8 @@ if ("serial" in navigator) {
 
         async playIntroduction() {
             const fingers = [
-                { num: 1, desc: "left ring finger" }, { num: 2, desc: "left middle finger" },
-                { num: 3, desc: "left index finger" }, { num: 4, desc: "right index finger" },
+                { num: 1, desc: "left index finger" }, { num: 2, desc: "left middle finger" },
+                { num: 3, desc: "left ring finger" }, { num: 4, desc: "right index finger" },
                 { num: 5, desc: "right middle finger" }, { num: 6, desc: "right ring finger" }
             ];
             await this.speak("Let me introduce the finger mappings.");
@@ -437,22 +437,34 @@ if ("serial" in navigator) {
                                 fingers.forEach((finger, i) => {
                                     setTimeout(() => this.writeToSerial(String(finger)), i * 50);
                                 });
+                                setTimeout(() => {
+                            setTimeout(() => this.writeToSerial('B'), 300);
+                        }, (fingers.length - 1) * 50 + 500);
                             }
                         });
                 } else {
                     this.speakWithVibration(`For ${letter.toUpperCase()}, fold ${fingers.join(' and ')}.`, fingers);
                 }
             } else if (this.mode === 'test') {
-                const word = this.testWords[this.currentWordIndex];
-                if (this.currentWordLetterIndex === 0) {
-                    this.speak(`Your word is ${word.toUpperCase()}. Enter ${letter.toUpperCase()}.`);
-                } else {
-                    this.speak(`Enter ${letter.toUpperCase()}.`);
-                }
-            }
-           
-            this.updateMasteryPath();
+        const word = this.testWords[this.currentWordIndex];
+        // For test mode, we need to send trigger beeps too
+        if (this.currentWordLetterIndex === 0) {
+            this.speak(`Your word is ${word.toUpperCase()}. Enter ${letter.toUpperCase()}.`)
+                .then(() => {
+                    // Send trigger beep in test mode too
+                    setTimeout(() => this.writeToSerial('B'), 300);
+                });
+        } else {
+            this.speak(`Enter ${letter.toUpperCase()}.`)
+                .then(() => {
+                    // Send trigger beep in test mode too
+                    setTimeout(() => this.writeToSerial('B'), 300);
+                });
         }
+    }
+   
+    this.updateMasteryPath();
+}
 
         handleBrailleInput(data) {
             if (this.isPaused || !data || this.testCompleted) return;
@@ -527,6 +539,8 @@ if ("serial" in navigator) {
                 this.currentLetterIndex++;
                 if (this.currentLetterIndex >= this.alphabet.length) {
                     this.learningCompleted = true;
+                    this.promptTimeout = setTimeout(() => this.nextPrompt(), 1200);
+                    return;
                 } else {
                     this.currentLetterIndex = this.currentLetterIndex % this.alphabet.length;
                 }
@@ -539,6 +553,8 @@ if ("serial" in navigator) {
                    
                     if (this.currentWordIndex >= this.practiceWords.length) {
                         this.practiceCompleted = true;
+                        this.promptTimeout = setTimeout(() => this.nextPrompt(), 1200);
+                        return;                        
                     } else {
                         this.currentWordIndex = this.currentWordIndex % this.practiceWords.length;
                         setTimeout(() => this.speak(`Your next word is ${this.practiceWords[this.currentWordIndex]}.`), 1000);
