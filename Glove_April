@@ -1,0 +1,989 @@
+if ("serial" in navigator) {
+    // DataCollector class with EWMA scoring
+    class DataCollector {
+        constructor() {
+            this.sessionId = Date.now();
+            this.attemptHistory = [];
+            this.sessionData = [];
+            this.errorRates = {};
+            this.sessionLog = [];
+            this.testResults = [];
+            this.currentMode = "learning";
+            this.totalAttempts = 0;
+            this.totalErrors = 0;
+            this.totalCorrect = 0;
+            this.letterErrorCounts = {};
+        }
+
+        setMode(mode) {
+            this.currentMode = mode;
+        }
+
+        startNewAttempt(letter, mode) {
+            this.currentMode = mode;
+            if (!this.errorRates[letter]) {
+                this.errorRates[letter] = { attempts: 0, errors: 0 };
+            }
+            if (!this.letterErrorCounts[letter]) {
+                this.letterErrorCounts[letter] = 0;
+            }
+        }
+
+        recordResponse(isCorrect, letter, actualInput, latencySeconds) {
+            if (!this.errorRates[letter]) {
+                this.errorRates[letter] = { attempts: 0, errors: 0 };
+            }
+            if (!this.letterErrorCounts[letter]) {
+                this.letterErrorCounts[letter] = 0;
+            }
+
+            this.errorRates[letter].attempts++;
+            this.totalAttempts++;
+            if (isCorrect) {
+                this.totalCorrect++;
+            } else {
+                this.totalErrors++;
+                this.errorRates[letter].errors++;
+                this.letterErrorCounts[letter]++;
+            }
+            
+            // EWMA Scoring (alpha = 0.3)
+            const alpha = 0.3;
+            const trialScore = isCorrect ? 100 : 0;
+            let smoothedAccuracy;
+            
+            if (this.sessionData.length === 0) {
+                // First attempt: use trial score directly
+                smoothedAccuracy = trialScore;
+            } else {
+                const lastRecord = this.sessionData[this.sessionData.length - 1];
+                const previousSmoothed = parseFloat(lastRecord.accuracy);
+                smoothedAccuracy = alpha * trialScore + (1 - alpha) * previousSmoothed;
+            }
+            
+            const letterErrorCount = this.letterErrorCounts[letter];
+            
+            const sessionRecord = {
+                sessionId: this.sessionId,
+                timestamp: new Date().toISOString(),
+                displayTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                mode: this.currentMode,
+                accuracy: smoothedAccuracy.toFixed(2),
+                latencySeconds: latencySeconds.toFixed(3),
+                targetLetter: letter.toUpperCase(),
+                input: actualInput ? actualInput.toUpperCase() : '',
+                correct: isCorrect,
+                errorCount: letterErrorCount
+            };
+            this.sessionData.push(sessionRecord);
+            
+            const uiRecord = {
+                letter: letter.toUpperCase(),
+                time: latencySeconds,
+                correct: isCorrect,
+                timestamp: sessionRecord.displayTime,
+                mode: this.currentMode,
+                actualInput: actualInput ? actualInput.toUpperCase() : ''
+            };
+            this.attemptHistory.unshift(uiRecord);
+            if (this.attemptHistory.length > 5) this.attemptHistory.pop();
+        }
+
+        recordTestAttempt(word, letter, isCorrect, actualInput) {
+            let wordResult = this.testResults.find(w => w.word === word);
+            if (!wordResult) {
+                wordResult = {
+                    word: word,
+                    attempts: [],
+                    correctCount: 0,
+                    incorrectCount: 0,
+                    letters: []
+                };
+                this.testResults.push(wordResult);
+            }
+            const letterEntry = {
+                letter: letter.toUpperCase(),
+                correct: isCorrect,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                actualInput: actualInput ? actualInput.toUpperCase() : ''
+            };
+            wordResult.attempts.push(letterEntry);
+            wordResult.letters.push(letterEntry);
+            if (isCorrect) wordResult.correctCount++;
+            else wordResult.incorrectCount++;
+        }
+
+        getErrorRate(letter) {
+            const rateInfo = this.errorRates[letter.toLowerCase()];
+            if (!rateInfo || rateInfo.attempts === 0) return { rate: 0, attempts: 0, errors: 0 };
+            return {
+                rate: (rateInfo.errors / rateInfo.attempts) * 100,
+                attempts: rateInfo.attempts,
+                errors: rateInfo.errors
+            };
+        }
+       
+        getFocusAreas() {
+            return Object.entries(this.errorRates)
+                .map(([letter, data]) => ({ letter, ...data, errorRate: data.attempts > 0 ? (data.errors / data.attempts) * 100 : 0 }))
+                .filter(item => item.errors > 0)
+                .sort((a, b) => b.errorRate - a.errorRate)
+                .slice(0, 3);
+        }
+
+        getTestStatistics() { return this.testResults; }
+        clearTestResults() { this.testResults = []; }
+
+        saveToCSV() {
+            if (this.sessionData.length === 0) {
+                alert("No session data to export.");
+                return;
+            }
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "SessionID,Timestamp,Mode,Accuracy (%),Latency (s),TargetLetter,Input,Correct,ErrorCount\r\n";
+            this.sessionData.forEach(record => {
+                const row = [
+                    record.sessionId, record.timestamp, record.mode, record.accuracy,
+                    record.latencySeconds, record.targetLetter, record.input,
+                    record.correct ? "TRUE" : "FALSE", record.errorCount
+                ].join(',');
+                csvContent += row + "\r\n";
+            });
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `wayv_session_${this.sessionId}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        getTotalAttempts() { return this.totalAttempts; }
+        getTotalCorrect() { return this.totalCorrect; }
+        getTotalErrors() { return this.totalErrors; }
+        
+        // Returns the latest EWMA accuracy (not cumulative)
+        getCurrentAccuracy() {
+            if (this.sessionData.length === 0) return 0;
+            return parseFloat(this.sessionData[this.sessionData.length - 1].accuracy);
+        }
+    }
+
+    class EnhancedBrailleTeacher {
+        constructor() {
+            this.port = null;
+            this.writer = null;
+            this.reader = null;
+            this.promptTimeout = null;
+            this.lastProcessedGesture = null;
+
+            this.beepTimestamp = null;
+            this.waitingForInput = false;
+            this.inputWaitTimeout = null;
+
+            this.mode = "learning";
+            this.isPaused = false;
+            this.recognition = null;
+            this.sessionStartTime = null;
+            this.sessionTimerInterval = null;
+            this.testCompleted = false;
+            this.learningCompleted = false;
+            this.practiceCompleted = false;
+           
+            this.dataCollector = new DataCollector();
+            this.correctStreak = 0;
+            this.bestStreak = 0;
+            this.masteredLetters = new Set();
+           
+            // FIX: Use counter + cooldown for speech recognition muting
+            this.speechActiveCount = 0;
+            this.speechCooldownTimer = null;
+            this.speechQueue = Promise.resolve(); // simple queue to avoid overlapping speech
+           
+            this.alphabet = ["a", "b", "c", "d", "e", "f"];
+            this.practiceWords = ["bed", "cab"];
+            this.testWords = ["fed", "fad"];           
+            this.currentLetterIndex = 0;
+            this.currentWordIndex = 0;
+            this.currentWordLetterIndex = 0;
+            this.alphabetFolds = { 
+                "a": [1], "b": [1, 2], "c": [1, 4], "d": [1, 4, 5],
+                "e": [1, 5], "f": [1, 2, 4], "g": [1, 2, 4, 5], 
+                "h": [1, 2, 5], "i": [2, 4], "j": [2, 4, 5], 
+                "k": [1, 3], "l": [1, 2, 3], "m": [1, 3, 4], 
+                "n": [1, 3, 4, 5], "o": [1, 3, 5], "p": [1, 2, 3, 4], 
+                "q": [1, 2, 3, 4, 5], "r": [1, 2, 3, 5], "s": [2, 3, 4], 
+                "t": [2, 3, 4, 5], "u": [1, 3, 6], "v": [1, 2, 3, 6], 
+                "w": [2, 4, 5, 6], "x": [1, 3, 4, 6], "y": [1, 3, 4, 5, 6], 
+                "z": [1, 3, 5, 6] 
+            };
+           
+            this.isListening = true;
+
+            this.initializeUI();
+            this.initializeEventListeners();
+            this.initializeSpeechRecognition();
+           
+            if (this.isListening && this.recognition) {
+                this.recognition.start();
+                this.speak("Voice commands are active. Please connect your device to begin.");
+                document.getElementById('voice-status').textContent = 'Active';
+                document.getElementById('voice-status').style.color = '#2ecc71';
+            }
+        }
+
+        initializeUI() {
+            this.updateMasteryPath();
+            this.updateAllStats();
+        }
+
+        initializeEventListeners() {
+            document.getElementById("connectBtn").addEventListener("click", () => this.connectToSerial());
+            document.getElementById("modeSelect").addEventListener("change", (e) => this.switchMode(e.target.value));
+            document.getElementById("endBtn").addEventListener("click", () => this.endSession());
+            document.getElementById("downloadBtn").addEventListener("click", () => this.dataCollector.saveToCSV());
+            document.getElementById("repeatBtn").addEventListener("click", () => this.handleRepeatCommand());
+            document.getElementById("hintBtn").addEventListener("click", () => this.provideHint());
+            document.getElementById("skipBtn").addEventListener("click", () => this.skipPrompt());
+            document.getElementById("pauseResumeBtn").addEventListener("click", () => this.togglePause());
+            document.getElementById("progressBtn").addEventListener("click", () => this.handleProgressQuery());
+        }
+       
+        async endSession() {
+            this.dataCollector.saveToCSV();
+            if (this.sessionTimerInterval) clearInterval(this.sessionTimerInterval);
+            if (this.promptTimeout) clearTimeout(this.promptTimeout);
+            if (this.inputWaitTimeout) clearTimeout(this.inputWaitTimeout);
+            this.resetInputWaiting();
+
+            try {
+                if (this.reader) {
+                    await this.reader.cancel();
+                    this.reader.releaseLock();
+                }
+                if (this.writer) this.writer.releaseLock();
+                if (this.port) await this.port.close();
+            } catch (e) { console.log("Connection cleanup:", e); }
+
+            this.port = null;
+            this.writer = null;
+            this.reader = null;
+            this.isPaused = false;
+            this.currentLetterIndex = 0;
+            this.masteredLetters.clear();
+            this.testCompleted = false;
+            this.learningCompleted = false;
+            this.practiceCompleted = false;
+            this.dataCollector.clearTestResults();
+           
+            document.getElementById('connectionStatus').textContent = '● Disconnected';
+            document.getElementById('connectionStatus').className = 'disconnected';
+            document.getElementById('sessionTime').textContent = 'Session: 00m 00s';
+            document.getElementById('current-word-display').textContent = '-';
+            this.updateAllStats();
+            this.updateMasteryPath();
+            this.speak("Session ended. Data has been exported. Please connect your device again to start a new session.");
+        }
+       
+        async connectToSerial() {
+            try {
+                this.port = await navigator.serial.requestPort();
+                await this.port.open({ baudRate: 9600 });
+                this.writer = this.port.writable.getWriter();
+                this.reader = this.port.readable.getReader();
+
+                document.getElementById('connectionStatus').textContent = '● Connected';
+                document.getElementById('connectionStatus').className = 'connected';
+                this.sessionStartTime = Date.now();
+                this.startSessionTimer();
+               
+                await this.speak("Device connected. Voice commands are active.");
+                await this.playIntroduction();
+               
+                this.readSerialLoop();
+                this.nextPrompt();
+            } catch (error) {
+                console.error(`Connection failed: ${error}`);
+                this.speak("There was an error connecting to the device.");
+            }
+        }
+
+        async playIntroduction() {
+            const fingers = [
+                { num: 1, desc: "left index finger" }, { num: 2, desc: "left middle finger" },
+                { num: 3, desc: "left ring finger" }, { num: 4, desc: "right index finger" },
+                { num: 5, desc: "right middle finger" }, { num: 6, desc: "right ring finger" }
+            ];
+            await this.speak("Let me introduce the finger mappings.");
+            for (const finger of fingers) {
+                await this.speak(`Finger ${finger.num} is your ${finger.desc}.`);
+                await this.writeToSerial(String(finger.num));
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            // Clearer explanation + live beep demo
+            await this.speak("Remember, Your input will only be recorded after the 2 trigger beeps. – like this.");
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await this.writeToSerial('B');
+            await this.speak("Now you know what to listen for. Let's start with learning mode.");
+        }          
+
+        async writeToSerial(data) {
+            if (this.writer) {
+                try {
+                    const encoder = new TextEncoder();
+                    await this.writer.write(encoder.encode(data + "\n"));
+                } catch (error) {
+                    console.error("Error writing to serial port:", error);
+                }
+            }
+        }
+
+        async readSerialLoop() {
+            const decoder = new TextDecoder();
+            try {
+                while (true) {
+                    const { value, done } = await this.reader.read();
+                    if (done) break;
+                    const cleanValue = decoder.decode(value).replace(/[\r\n]/g, '');
+                    if (cleanValue) this.handleBrailleInput(cleanValue);
+                }
+            } catch (error) { console.error(`Error reading data: ${error}`); }
+        }
+
+        sendTriggerBeep() {
+            this.writeToSerial('B');
+            this.beepTimestamp = Date.now();
+            this.waitingForInput = true;
+            if (this.inputWaitTimeout) clearTimeout(this.inputWaitTimeout);
+            this.inputWaitTimeout = setTimeout(() => {
+                if (this.waitingForInput) {
+                    console.log("Input wait timeout - no response received");
+                    this.waitingForInput = false;
+                    this.beepTimestamp = null;
+                    this.speak("No input detected.");
+                    this.promptTimeout = setTimeout(() => this.nextPrompt(), 1500);
+                }
+            }, 15000);
+        }
+
+        resetInputWaiting() {
+            this.waitingForInput = false;
+            this.beepTimestamp = null;
+            if (this.inputWaitTimeout) {
+                clearTimeout(this.inputWaitTimeout);
+                this.inputWaitTimeout = null;
+            }
+        }
+
+        nextPrompt() {
+            if (this.promptTimeout) {
+                clearTimeout(this.promptTimeout);
+                this.promptTimeout = null;
+            }
+            if (this.isPaused) return;
+            if (this.mode === 'test' && this.testCompleted) return;
+           
+            let letter;
+            let currentWordList;
+
+            if (this.mode === 'learning') {
+                if (this.learningCompleted) {
+                    this.speak("Learning mode completed! ");
+                    this.switchMode('practice');
+                    return;
+                }
+                letter = this.alphabet[this.currentLetterIndex];
+                if (!letter) {
+                    console.error("Invalid letter index in learning mode");
+                    return;
+                }
+                document.getElementById('current-word-display').textContent = 'A-Z Path';
+            } else if (this.mode === 'practice') {
+                if (this.practiceCompleted) {
+                    this.speak("Practice mode completed! Now switching to test mode. In this mode you will be examined on 3 letter words and you wont receive any corrective feedback on your answers. Once you complete the test you will get the results. Good luck!");
+                    this.switchMode('test');
+                    return;
+                }
+                currentWordList = this.practiceWords;
+                if (this.currentWordIndex >= currentWordList.length) {
+                    this.practiceCompleted = true;
+                    this.nextPrompt();
+                    return;
+                }
+                const word = currentWordList[this.currentWordIndex];
+                if (this.currentWordLetterIndex >= word.length) {
+                    this.currentWordLetterIndex = 0;
+                    this.currentWordIndex++;
+                    this.nextPrompt();
+                    return;
+                }
+                letter = word[this.currentWordLetterIndex];
+                document.getElementById('current-word-display').textContent = word.toUpperCase();
+            } else if (this.mode === 'test') {
+                if (this.testCompleted) return;
+                if (this.currentWordIndex >= this.testWords.length) {
+                    this.testCompleted = true;
+                    this.speak("Congratulations! The test is complete.");
+                    document.getElementById('current-word-display').textContent = 'Test Complete';
+                    setTimeout(() => this.reportTestResults(), 2000);
+                    return;
+                }
+                currentWordList = this.testWords;
+                const word = currentWordList[this.currentWordIndex];
+                if (this.currentWordLetterIndex >= word.length) {
+                    this.currentWordIndex++;
+                    this.currentWordLetterIndex = 0;
+                    this.nextPrompt();
+                    return;
+                }
+                letter = word[this.currentWordLetterIndex];
+                document.getElementById('current-word-display').textContent = word.toUpperCase();
+            }
+
+            this.updateBraillePatternDisplay(letter);
+            this.dataCollector.startNewAttempt(letter, this.mode);
+            this.resetInputWaiting();
+            
+            if (this.mode === 'learning') {
+                const fingers = this.alphabetFolds[letter];
+                this.speakWithVibration(`For ${letter.toUpperCase()}, fold ${fingers.join(' and ')}.`, fingers);
+            } else if (this.mode === 'practice') {
+                const fingers = this.alphabetFolds[letter];
+                const word = this.practiceWords[this.currentWordIndex];
+                if (this.currentWordLetterIndex === 0) {
+                    this.speak(`Your word is ${word.toUpperCase()}. For ${letter.toUpperCase()}, fold ${fingers.join(' and ')}.`)
+                        .then(() => {
+                            if (fingers && fingers.length > 0) {
+                                fingers.forEach((finger, i) => {
+                                    setTimeout(() => this.writeToSerial(String(finger)), i * 50);
+                                });
+                                setTimeout(() => {
+                                    this.sendTriggerBeep();
+                                }, (fingers.length - 1) * 50 + 500);
+                            } else {
+                                this.sendTriggerBeep();
+                            }
+                        });
+                } else {
+                    this.speakWithVibration(`For ${letter.toUpperCase()}, fold ${fingers.join(' and ')}.`, fingers);
+                }
+            } else if (this.mode === 'test') {
+                const word = this.testWords[this.currentWordIndex];
+                if (this.currentWordLetterIndex === 0) {
+                    const letters = word.toUpperCase().split('');
+                    const spelled = letters.join(', ');
+                    this.speak(`Your word is ${spelled}. Enter ${letters[0]}.`)
+                        .then(() => { this.sendTriggerBeep(); });
+                } else {
+                    this.speak(`Enter ${letter.toUpperCase()}.`)
+                        .then(() => { this.sendTriggerBeep(); });
+                }
+            }
+            this.updateMasteryPath();
+        }
+
+        handleBrailleInput(data) {
+            if (this.isPaused || !data || this.testCompleted) return;
+            if (!this.waitingForInput) {
+                console.log("Input received before trigger beep, ignoring:", data);
+                return;
+            }
+            if (data === this.lastProcessedGesture) return;
+            this.lastProcessedGesture = data;
+            if (this.promptTimeout) {
+                clearTimeout(this.promptTimeout);
+                this.promptTimeout = null;
+            }        
+            
+            let currentLetter;
+            let currentWordList;
+            let currentWord = '';
+           
+            if (this.mode === 'learning') {
+                if (this.currentLetterIndex >= this.alphabet.length) return;
+                currentLetter = this.alphabet[this.currentLetterIndex];
+            } else if (this.mode === 'practice') {
+                if (this.currentWordIndex >= this.practiceWords.length) return;
+                currentWordList = this.practiceWords;
+                currentWord = currentWordList[this.currentWordIndex];
+                if (this.currentWordLetterIndex >= currentWord.length) return;
+                currentLetter = currentWord[this.currentWordLetterIndex];
+            } else if (this.mode === 'test') {
+                if (this.currentWordIndex >= this.testWords.length) return;
+                currentWordList = this.testWords;
+                currentWord = currentWordList[this.currentWordIndex];
+                if (this.currentWordLetterIndex >= currentWord.length) return;
+                currentLetter = currentWord[this.currentWordLetterIndex];
+            }
+
+            console.log(`Received: '${data}', Expected: '${currentLetter}'`);
+            const receivedChar = data.trim().toLowerCase().charAt(0);
+            const isCorrect = receivedChar === currentLetter;
+            let latencySeconds = 0;
+            if (this.beepTimestamp) {
+                latencySeconds = (Date.now() - this.beepTimestamp) / 1000;
+            } else {
+                console.warn("No beep timestamp available for latency calculation");
+            }
+            this.resetInputWaiting();
+            this.dataCollector.recordResponse(isCorrect, currentLetter, receivedChar, latencySeconds);
+            if (this.mode === 'test') {
+                this.dataCollector.recordTestAttempt(currentWord, currentLetter, isCorrect, receivedChar);
+            }
+
+            if (isCorrect) {
+                this.correctStreak++;
+                if (this.correctStreak > this.bestStreak) this.bestStreak = this.correctStreak;
+                this.handleCorrectAnswer(currentLetter);
+            } else {
+                this.correctStreak = 0;
+                if (this.mode === 'practice' || this.mode === 'learning') {
+                    this.speak("Not quite. Let's try that letter again.");
+                    this.promptTimeout = setTimeout(() => this.nextPrompt(), 1200);
+                } else if (this.mode === 'test') {
+                    this.handleTestWrongAnswer();
+                }
+            }
+            this.updateAllStats();
+        }
+
+        handleCorrectAnswer(letter) {
+            const { attempts } = this.dataCollector.getErrorRate(letter);
+            if (attempts <= 2 && this.mode === 'learning') {
+                this.masteredLetters.add(letter);
+            }
+            if (this.mode !== 'test') this.speak("Correct!");
+            if (this.promptTimeout) clearTimeout(this.promptTimeout);
+
+            if (this.mode === 'learning') {
+                this.currentLetterIndex++;
+                if (this.currentLetterIndex >= this.alphabet.length) {
+                    this.learningCompleted = true;
+                    this.promptTimeout = setTimeout(() => this.nextPrompt(), 1200);
+                    return;
+                }
+            } else if (this.mode === 'practice') {
+                this.currentWordLetterIndex++;
+                const currentWord = this.practiceWords[this.currentWordIndex];
+                if (this.currentWordLetterIndex >= currentWord.length) {
+                    this.speak(`Excellent! You spelled ${currentWord}.`);
+                    this.currentWordLetterIndex = 0;
+                    this.currentWordIndex++;
+                    if (this.currentWordIndex >= this.practiceWords.length) {
+                        this.practiceCompleted = true;
+                        this.promptTimeout = setTimeout(() => this.nextPrompt(), 1200);
+                        return;                        
+                    } else {
+                        setTimeout(() => this.speak(`Your next word is ${this.practiceWords[this.currentWordIndex]}.`), 1000);
+                    }
+                }
+            } else if (this.mode === 'test') {
+                this.currentWordLetterIndex++;
+                const currentWord = this.testWords[this.currentWordIndex];
+                if (this.currentWordLetterIndex >= currentWord.length) {
+                    const completedWord = currentWord;
+                    this.currentWordIndex++;
+                    this.currentWordLetterIndex = 0;
+                    if (this.currentWordIndex < this.testWords.length) {
+                        setTimeout(() => {
+                            const nextWord = this.testWords[this.currentWordIndex];
+                            const nextLetters = nextWord.toUpperCase().split('');
+                            const nextSpelled = nextLetters.join(', ');
+                            this.speak(`Word "${completedWord.toUpperCase()}" completed. The next word is ${nextSpelled}. Enter ${nextLetters[0]}.`);
+                        }, 800);
+                    }
+                    if (this.currentWordIndex >= this.testWords.length) {
+                        this.testCompleted = true;
+                        this.speak("Congratulations! The test is complete.");
+                        setTimeout(() => this.reportTestResults(), 2000);
+                        return;
+                    } else {
+                        setTimeout(() => {
+                            if (this.mode === 'test') this.nextPrompt();
+                        }, 2000);
+                        return;
+                    }
+                }
+            }
+            this.promptTimeout = setTimeout(() => this.nextPrompt(), 1200);
+        }
+
+        handleTestWrongAnswer() {
+            this.currentWordLetterIndex++;
+            if (this.currentWordLetterIndex >= this.testWords[this.currentWordIndex].length) {
+                const completedWord = this.testWords[this.currentWordIndex];
+                this.currentWordIndex++;
+                this.currentWordLetterIndex = 0;
+                if (this.currentWordIndex < this.testWords.length) {
+                    setTimeout(() => {
+                        const nextWord = this.testWords[this.currentWordIndex];
+                        const nextLetters = nextWord.toUpperCase().split('');
+                        const nextSpelled = nextLetters.join(', ');
+                        this.speak(`Word "${completedWord.toUpperCase()}" completed. The next word is ${nextSpelled}. Enter ${nextLetters[0]}.`);
+                    }, 800);
+                }
+                if (this.currentWordIndex >= this.testWords.length) {
+                    this.testCompleted = true;
+                    this.speak("Congratulations! The test is complete.");
+                    setTimeout(() => this.reportTestResults(), 2000);
+                    return;
+                } else {
+                    setTimeout(() => {
+                        if (this.mode === 'test') this.nextPrompt();
+                    }, 2000);
+                    return;
+                }
+            }
+            this.promptTimeout = setTimeout(() => this.nextPrompt(), 1000);
+        }
+
+        reportTestResults() {
+            const testStats = this.dataCollector.getTestStatistics();
+            let report = "Test results: ";
+            if (testStats.length === 0) {
+                report += "No test data available.";
+            } else {
+                testStats.forEach((wordResult) => {
+                    report += `For word ${wordResult.word.toUpperCase()}, you entered `;
+                    const letterReports = [];
+                    wordResult.letters.forEach(letterEntry => {
+                        if (letterEntry.correct) letterReports.push(`${letterEntry.letter} correct`);
+                        else letterReports.push(`${letterEntry.letter} (entered ${letterEntry.actualInput}) incorrect`);
+                    });
+                    report += letterReports.join(', ') + `. `;
+                    report += `That's ${wordResult.correctCount} correct and ${wordResult.incorrectCount} incorrect. `;
+                });
+                const totalCorrect = testStats.reduce((sum, word) => sum + word.correctCount, 0);
+                const totalLetters = testStats.reduce((sum, word) => sum + word.letters.length, 0);
+                const overallAccuracy = totalLetters > 0 ? (totalCorrect / totalLetters * 100).toFixed(0) : 0;
+                report += `Overall test accuracy: ${overallAccuracy} percent. `;
+                if (overallAccuracy >= 80) report += "Excellent work!";
+                else if (overallAccuracy >= 60) report += "Good job! Keep practicing.";
+                else report += "Keep practicing to improve your skills.";
+            }
+            this.speak(report);
+        }
+
+        initializeSpeechRecognition() {
+            if ('webkitSpeechRecognition' in window) {
+                this.recognition = new webkitSpeechRecognition();
+                this.recognition.continuous = true;
+                this.recognition.interimResults = true;
+                this.recognition.lang = 'en-US';
+
+                this.recognition.onresult = (event) => {
+                    if (this.speechActiveCount > 0 || this.speechCooldownTimer !== null) {
+                        console.log("[Voice] Ignoring result - system is speaking or in cooldown");
+                        return;
+                    }
+                    let final_transcript = '';
+                    for (let i = event.resultIndex; i < event.results.length; ++i) {
+                        if (event.results[i].isFinal) {
+                            final_transcript += event.results[i][0].transcript;
+                        }
+                    }
+                    const command = final_transcript.trim().toLowerCase();
+                    if (command) {
+                        console.log("Final command received:", command);
+                        this.handleVoiceCommand(command);
+                    }
+                };
+
+                this.recognition.onerror = (event) => console.error('Speech recognition error:', event.error);
+                this.recognition.onend = () => {
+                    if (this.isListening) {
+                        console.log("[Speech engine] Service ended, restarting...");
+                        this.recognition.start();
+                    }
+                };
+                this.recognition.onstart = () => console.log("[Speech engine] Recognition service started.");
+            } else {
+                console.warn("Speech Recognition API not supported in this browser.");
+            }
+        }
+       
+        handleVoiceCommand(command) {
+            if (command.includes("learning") || command.includes("learning mode")) {
+                this.speak("Switching to learning mode.");
+                this.switchMode("learning");
+            } else if (command.includes("practice") || command.includes("practice mode")) {
+                this.speak("Switching to practice mode.");
+                this.switchMode("practice");
+            } else if (command.includes("test") || command.includes("test mode")) {
+                this.speak("Switching to test mode.");
+                this.switchMode("test");
+            } else if (command.includes("accuracy") || command.includes("how am i doing") || command.includes("progress")) {
+                this.handleProgressQuery();
+            } else if (command.includes("repeat") || command.includes("again")) {
+                this.handleRepeatCommand();
+            } else if (command.includes("remaining") || command.includes("left")) {
+                this.handleRemainingQuery();
+            } else if (command.includes("hint") || command.includes("clue")) {
+                this.provideHint();
+            } else if (command.includes("skip") || command.includes("next")) {
+                if (this.mode === 'test') this.speak("Skipping is not allowed in test mode.");
+                else this.skipPrompt();
+            } else if (command.includes("pause") || command.includes("stop")) {
+                if (!this.isPaused) this.togglePause();
+            } else if (command.includes("resume") || command.includes("continue") || command.includes("start")) {
+                if (this.isPaused) this.togglePause();
+            }
+        }
+
+        togglePause() {
+            if (this.mode === 'test') {
+                this.speak("Pausing is not allowed in test mode.");
+                return;
+            }
+            this.isPaused = !this.isPaused;
+            const button = document.getElementById('pauseResumeBtn');
+            if (this.isPaused) {
+                button.textContent = 'Resume';
+                this.speak("Session paused.");
+            } else {
+                button.textContent = 'Pause';
+                this.speak("Resuming session.");
+                this.nextPrompt();
+            }
+        }
+
+        handleProgressQuery() {
+            const accuracy = this.dataCollector.getCurrentAccuracy();
+            let report = `Your current accuracy is ${accuracy.toFixed(0)} percent. `;
+            const focus = this.dataCollector.getFocusAreas();
+            if (focus.length > 0) {
+                report += `You might want to focus a little more on letters like ${focus.map(f => f.letter.toUpperCase()).join(', ')}. `;
+            }
+            report += "You're doing a great job!";
+            this.speak(report);
+        }
+
+        handleRepeatCommand() {
+            if (this.mode === 'test') this.nextPrompt();
+            else {
+                this.speak("Repeating the instruction.");
+                this.nextPrompt();
+            }
+        }
+
+        handleRemainingQuery() {
+            if (this.mode !== 'learning') {
+                this.speak("This command is only available in learning mode.");
+                return;
+            }
+            const remaining = this.alphabet.length - this.masteredLetters.size;
+            this.speak(`You have ${remaining} letters left to master. Keep going!`);
+        }
+       
+        provideHint() {
+            if (this.mode === 'test') {
+                this.speak("Hints are not available in test mode.");
+                return;
+            }
+            let letter;
+            if (this.mode === 'learning') letter = this.alphabet[this.currentLetterIndex];
+            else if (this.mode === 'practice') letter = this.practiceWords[this.currentWordIndex][this.currentWordLetterIndex];
+            else return;
+            const fingers = this.alphabetFolds[letter];
+            this.speakWithVibration(`Hint: For ${letter.toUpperCase()}, fold ${fingers.join(' and ')}.`, fingers);
+        }
+
+        skipPrompt() {
+            if (this.mode === 'test') {
+                this.speak("Skipping is not allowed in test mode.");
+                return;
+            }
+            this.speak("Skipping to the next one.");
+            if (this.promptTimeout) clearTimeout(this.promptTimeout);
+            if (this.mode === 'learning') {
+                this.currentLetterIndex = (this.currentLetterIndex + 1) % this.alphabet.length;
+            } else if (this.mode === 'practice') {
+                this.currentWordLetterIndex++;
+                if (this.currentWordLetterIndex >= this.practiceWords[this.currentWordIndex].length) {
+                    this.currentWordLetterIndex = 0;
+                    this.currentWordIndex = (this.currentWordIndex + 1) % this.practiceWords.length;
+                }
+            }
+            this.nextPrompt();
+        }
+       
+        async switchMode(newMode) {
+            if (this.mode === newMode) {
+                this.speak(`You are already in ${newMode} mode.`);
+                return;
+            }
+            await this.speak(`Switching to ${newMode} mode.`);
+            if (this.promptTimeout) clearTimeout(this.promptTimeout);
+            this.resetInputWaiting();
+            this.mode = newMode;
+            if (newMode === 'learning') {
+                this.learningCompleted = false;
+                this.practiceCompleted = false;
+                this.testCompleted = false;
+                this.currentLetterIndex = 0;
+                this.currentWordIndex = 0;
+                this.currentWordLetterIndex = 0;
+            } else if (newMode === 'practice') {
+                this.practiceCompleted = false;
+                this.testCompleted = false;
+                this.currentLetterIndex = 0;
+                this.currentWordIndex = 0;
+                this.currentWordLetterIndex = 0;
+            } else if (newMode === 'test') {
+                this.testCompleted = false;
+                this.currentLetterIndex = 0;
+                this.currentWordIndex = 0;
+                this.currentWordLetterIndex = 0;
+                this.dataCollector.clearTestResults();
+            }
+            document.getElementById('modeSelect').value = newMode;
+            this.dataCollector.setMode(newMode);
+            this.nextPrompt();
+        }
+
+        speakWithVibration(text, fingers) {
+            this.speak(text).then(() => {
+                if (fingers && fingers.length > 0) {
+                    fingers.forEach((finger, i) => {
+                        setTimeout(() => this.writeToSerial(String(finger)), i * 50);
+                    });
+                    setTimeout(() => {
+                        this.sendTriggerBeep();
+                    }, (fingers.length - 1) * 50 + 500);
+                } else {
+                    this.sendTriggerBeep();
+                }
+            });
+        }
+
+        updateAllStats() {
+            const accuracy = this.dataCollector.getCurrentAccuracy();
+            const history = this.dataCollector.attemptHistory;
+            const totalTime = history.reduce((sum, item) => sum + item.time, 0);
+            const avgTime = history.length > 0 ? totalTime / history.length : 0;
+            document.getElementById('history-accuracy').textContent = `${accuracy.toFixed(0)}%`;
+            document.getElementById('history-avg-time').textContent = `${avgTime.toFixed(1)}s`;
+            document.getElementById('history-current-streak').textContent = this.correctStreak;
+            document.getElementById('history-best-streak').textContent = this.bestStreak;
+            document.getElementById('progress-accuracy').textContent = `${accuracy.toFixed(1)}%`;
+            document.getElementById('progress-avg-time').textContent = `${avgTime.toFixed(1)}s`;
+            document.getElementById('progress-total-attempts').textContent = this.dataCollector.getTotalAttempts();
+            document.getElementById('accuracy-progress-bar').style.width = `${accuracy}%`;
+            this.updateAttemptHistoryList();
+            this.updateFocusAreas();
+        }
+
+        updateBraillePatternDisplay(letter) {
+            document.getElementById('braille-char-output').textContent = letter.toUpperCase();
+            const positions = this.alphabetFolds[letter];
+            document.getElementById('active-dots').textContent = positions.join(', ');
+            for (let i = 1; i <= 6; i++) {
+                document.getElementById(`dot-${i}`).classList.toggle('active', positions.includes(i));
+            }
+        }
+       
+        updateMasteryPath() {
+            const container = document.getElementById('mastery-path-container');
+            container.innerHTML = '';
+            this.alphabet.forEach((letter, index) => {
+                const tile = document.createElement('div');
+                tile.className = 'letter-tile';
+                tile.textContent = letter.toUpperCase();
+                const { attempts, errors } = this.dataCollector.getErrorRate(letter);
+                if (this.mode === 'learning' && index === this.currentLetterIndex) tile.classList.add('current');
+                else if (this.masteredLetters.has(letter)) tile.classList.add('mastered');
+                else if (attempts > 2 && errors > 0) tile.classList.add('difficult');
+                else tile.classList.add('pending');
+                container.appendChild(tile);
+            });
+        }
+
+        updateAttemptHistoryList() {
+            const list = document.getElementById('history-list');
+            list.innerHTML = '';
+            if (this.dataCollector.attemptHistory.length === 0) {
+                list.innerHTML = '<li class="placeholder">Connect the device to begin tracking attempts.</li>';
+                return;
+            }
+            this.dataCollector.attemptHistory.forEach(item => {
+                const li = document.createElement('li');
+                li.className = item.correct ? 'correct' : 'incorrect';
+                const inputInfo = item.actualInput ? ` (entered ${item.actualInput})` : '';
+                li.innerHTML = `
+                    <div class="status-icon">${item.correct ? '✔' : '✖'}</div>
+                    <div class="attempt-details">Required: <strong>${item.letter}</strong>${inputInfo}<small>${item.timestamp} - ${item.mode}</small></div>
+                    <div class="attempt-time">${(item.time).toFixed(1)}s</div>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        updateFocusAreas() {
+            const container = document.getElementById('focus-areas');
+            container.innerHTML = '';
+            const areas = this.dataCollector.getFocusAreas();
+            if (areas.length > 0) {
+                areas.forEach(area => {
+                    const item = document.createElement('div');
+                    item.className = 'focus-item';
+                    item.innerHTML = `<strong>${area.letter.toUpperCase()}</strong><small>${area.errors} errors in ${area.attempts} attempts</small>`;
+                    container.appendChild(item);
+                });
+            } else {
+                container.innerHTML = '<p>No specific focus areas yet. Great work!</p>';
+            }
+        }
+       
+        startSessionTimer() {
+            if (this.sessionTimerInterval) clearInterval(this.sessionTimerInterval);
+            this.sessionTimerInterval = setInterval(() => {
+                if (this.isPaused) return;
+                const elapsed = Math.floor((Date.now() - this.sessionStartTime) / 1000);
+                const minutes = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                const seconds = String(elapsed % 60).padStart(2, '0');
+                document.getElementById('sessionTime').textContent = `Session: ${minutes}m ${seconds}s`;
+            }, 1000);
+        }
+
+        speak(text) {
+            return new Promise((resolve) => {
+                if (!('speechSynthesis' in window)) {
+                    resolve();
+                    return;
+                }
+                this.speechActiveCount++;
+                if (this.speechCooldownTimer) {
+                    clearTimeout(this.speechCooldownTimer);
+                    this.speechCooldownTimer = null;
+                }
+                
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.pitch = 1.2;
+                utterance.rate = 1.1;
+                utterance.onend = () => {
+                    this.speechActiveCount--;
+                    if (this.speechCooldownTimer) clearTimeout(this.speechCooldownTimer);
+                    this.speechCooldownTimer = setTimeout(() => {
+                        this.speechCooldownTimer = null;
+                        console.log("[Voice] Cooldown ended");
+                    }, 500);
+                    resolve();
+                };
+                utterance.onerror = (e) => {
+                    console.error("Speech synthesis error:", e);
+                    this.speechActiveCount--;
+                    if (this.speechCooldownTimer) clearTimeout(this.speechCooldownTimer);
+                    this.speechCooldownTimer = setTimeout(() => {
+                        this.speechCooldownTimer = null;
+                    }, 500);
+                    resolve();
+                };
+                speechSynthesis.speak(utterance);
+            });
+        }
+    }
+   
+    new EnhancedBrailleTeacher();
+} else {
+    alert("Web Serial API not supported. Please use a modern browser like Chrome or Edge.");
+}
