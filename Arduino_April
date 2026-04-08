@@ -1,0 +1,448 @@
+#define adc1 A5
+#define adc2 A4
+#define adc3 A3
+#define adc4 A2
+#define adc5 A1
+#define adc6 A0
+#define buzzer 11
+#define ledd 13
+#define m1 4
+#define m2 3
+#define m3 2
+#define m4 5
+#define m5 6
+#define m6 7
+#define mod 8
+int flex2=0,flex1=0,flex3=0,flex4=0,flex5=0,flex6=0,swt;
+
+bool introDone = false;
+
+void vibrateFinger(int finger, int duration) {
+  digitalWrite(finger, HIGH);
+  delay(duration);
+  digitalWrite(finger, LOW);
+  delay(100);
+}
+
+void setup() 
+{  
+ pinMode(mod,INPUT_PULLUP);
+ pinMode(ledd,OUTPUT);
+  pinMode(buzzer,OUTPUT);
+  pinMode(m1,OUTPUT);
+  pinMode(m2,OUTPUT);
+  pinMode(m3,OUTPUT);
+  pinMode(m4,OUTPUT);
+  pinMode(m5,OUTPUT);
+  pinMode(m6,OUTPUT);
+
+  digitalWrite(buzzer,HIGH);
+  delay(1000);
+  digitalWrite(buzzer,LOW);
+   digitalWrite(ledd,HIGH);
+
+ Serial.begin(9600 );
+ //Serial.println("Initialize MPU6050");
+}
+
+void loop()
+{
+// --- NEW SERIAL READING LOGIC ---
+  if (Serial.available() > 0) {
+    // Read the whole string until you press Enter
+    String receivedStr = Serial.readStringUntil('\n');
+    receivedStr.trim(); // Cleans up invisible carriage return characters
+
+    // Check for the "vb" command
+    if (receivedStr == "vb") {
+      vibrateFinger(m1, 500);
+      vibrateFinger(m2, 500);
+      vibrateFinger(m3, 500);
+      vibrateFinger(m4, 500);
+      vibrateFinger(m5, 500);
+      vibrateFinger(m6, 500);
+    } 
+    // Fall back to original single-character switch statement
+    else if (receivedStr.length() == 1) {
+      char received = receivedStr.charAt(0);
+      
+      switch(received) {
+        case '1': vibrateFinger(m1, 500); break;
+        case '2': vibrateFinger(m2, 500); break;
+        case '3': vibrateFinger(m3, 500); break;
+        case '4': vibrateFinger(m4, 500); break;
+        case '5': vibrateFinger(m5, 500); break;
+        case '6': vibrateFinger(m6, 500); break;
+        case 'B': 
+          // Two short trigger beeps
+          digitalWrite(buzzer, HIGH);
+          delay(60);
+          digitalWrite(buzzer, LOW);
+          delay(60);
+          digitalWrite(buzzer, HIGH);
+          delay(60);
+          digitalWrite(buzzer, LOW);
+          break;
+        case 'X': 
+          digitalWrite(m1, LOW);
+          digitalWrite(m2, LOW);
+          digitalWrite(m3, LOW);
+          digitalWrite(m4, LOW);
+          digitalWrite(m5, LOW);
+          digitalWrite(m6, LOW);
+          break;
+      }
+    }
+  }
+  flex6=analogRead(adc1);
+  flex5=analogRead(adc2);
+  flex4=analogRead(adc3);
+  flex1=analogRead(adc4);
+  flex2=analogRead(adc5);
+  flex3=analogRead(adc6);
+  delay(10);
+//  ff();
+  swt=digitalRead(mod);
+  if(swt==LOW)
+  {
+   digitalWrite(ledd,HIGH);
+   single();
+  }
+  else
+  {
+   digitalWrite(ledd,LOW);
+   if((flex1>900)&&(flex2>900)&&(flex3>900)&&(flex4>900)&&(flex5>900)&&(flex6>900))
+   {
+    digitalWrite(buzzer,HIGH);
+    digitalWrite(m1,HIGH);
+    digitalWrite(m2,HIGH);
+    digitalWrite(m3,HIGH);
+    digitalWrite(m4,HIGH);
+    digitalWrite(m5,HIGH);
+    digitalWrite(m6,HIGH);
+   Serial.println("");
+  }
+  
+  // else if((flex1>900)&&(flex3>900)&&(flex4>900)&&(flex5>900)&&(flex6>900))
+  // {
+  //  Serial.print("y");digitalWrite(buzzer,HIGH);
+  //  digitalWrite(m1,HIGH);
+  //   digitalWrite(m3,HIGH);
+  //   digitalWrite(m4,HIGH);
+  //   digitalWrite(m5,HIGH);
+  //   digitalWrite(m6,HIGH);
+  // }
+  
+  // else if((flex1>900)&&(flex2>900)&&(flex3>900)&&(flex4>900)&&(flex5>900))
+  // {
+  //  Serial.print("q");digitalWrite(buzzer,HIGH);
+  //  digitalWrite(m1,HIGH);
+  //   digitalWrite(m2,HIGH);
+  //   digitalWrite(m3,HIGH);
+  //   digitalWrite(m4,HIGH);
+  //   digitalWrite(m5,HIGH);
+  // }
+
+  // else if((flex1>900)&&(flex3>900)&&(flex5>900)&&(flex6>900))
+  // {
+  //  Serial.print("z");digitalWrite(buzzer,HIGH);
+  //  digitalWrite(m1,HIGH);
+  //   digitalWrite(m3,HIGH);
+  //   digitalWrite(m5,HIGH);
+  //   digitalWrite(m6,HIGH);
+  // }
+
+  // else if((flex1>900)&&(flex3>900)&&(flex4>900)&&(flex6>900))
+  // {
+  //  Serial.print("x");digitalWrite(buzzer,HIGH);
+  //  digitalWrite(m1,HIGH);
+  //   digitalWrite(m3,HIGH);
+  //   digitalWrite(m4,HIGH);
+  //   digitalWrite(m6,HIGH);
+  // }
+
+  // else if((flex2>900)&&(flex4>900)&&(flex5>900)&&(flex6>900))
+  // {
+  //  Serial.print("w");digitalWrite(buzzer,HIGH);
+  //   digitalWrite(m2,HIGH);
+
+  //   digitalWrite(m4,HIGH);
+  //   digitalWrite(m5,HIGH);
+  //   digitalWrite(m6,HIGH);
+  // }
+  
+  // else if((flex1>900)&&(flex2>900)&&(flex3>900)&&(flex6>900))
+  // {
+  //  Serial.print("v");digitalWrite(buzzer,HIGH);
+  //  digitalWrite(m1,HIGH);
+  //   digitalWrite(m2,HIGH);
+  //   digitalWrite(m3,HIGH);
+  //   digitalWrite(m6,HIGH);
+  // }
+
+  // else if((flex2>580)&&(flex3>650)&&(flex4>680)&&(flex5>760))
+  // {
+  //  Serial.print("t");digitalWrite(buzzer,HIGH);
+ 
+  //   digitalWrite(m2,HIGH);
+  //   digitalWrite(m3,HIGH);
+  //   digitalWrite(m4,HIGH);
+  //   digitalWrite(m5,HIGH);
+  // }
+
+  // else if((flex1>900)&&(flex2>900)&&(flex3>900)&&(flex5>900))
+  // {
+  //  Serial.print("r");digitalWrite(buzzer,HIGH);
+  //  digitalWrite(m1,HIGH);
+  //   digitalWrite(m2,HIGH);
+  //   digitalWrite(m3,HIGH); 
+  //   digitalWrite(m5,HIGH);
+  // } 
+
+  // else if((flex1>900)&&(flex2>900)&&(flex3>900)&&(flex4>900))
+  // {
+  //  Serial.print("p");digitalWrite(buzzer,HIGH);
+  //  digitalWrite(m1,HIGH);
+  //   digitalWrite(m2,HIGH);
+  //   digitalWrite(m3,HIGH);
+  //   digitalWrite(m4,HIGH);
+  // }
+
+  // else if((flex1>900)&&(flex3>900)&&(flex4>900)&&(flex5>900))
+  // {
+  //  Serial.print("n");digitalWrite(buzzer,HIGH);
+  //  digitalWrite(m1,HIGH);
+  //   digitalWrite(m3,HIGH);
+  //   digitalWrite(m4,HIGH);
+  //   digitalWrite(m5,HIGH);
+   
+  // }
+
+  // else if((flex1>900)&&(flex2>900)&&(flex4>900)&&(flex5>900))
+  // {
+  //  Serial.print("g");digitalWrite(buzzer,HIGH);
+  //  digitalWrite(m1,HIGH);
+  //   digitalWrite(m2,HIGH);
+  //   digitalWrite(m4,HIGH);
+  //   digitalWrite(m5,HIGH);
+  // }
+
+   else if((flex1>590)&&(flex4>680)&&(flex5>790))
+  {
+   Serial.print("d");digitalWrite(buzzer,HIGH);
+   digitalWrite(m1,HIGH);
+    digitalWrite(m4,HIGH);
+    digitalWrite(m5,HIGH);
+  }
+  
+  else if((flex1>720)&&(flex2>870)&&(flex4>750))
+  {
+   Serial.print("f");digitalWrite(buzzer,HIGH);
+   digitalWrite(m1,HIGH);
+    digitalWrite(m2,HIGH);
+
+    digitalWrite(m4,HIGH);
+
+  }
+  
+  // else if((flex1>900)&&(flex2>900)&&(flex5>900))
+  // {
+  //  Serial.print("h");digitalWrite(buzzer,HIGH);
+  //  digitalWrite(m1,HIGH);
+  //   digitalWrite(m2,HIGH);
+
+  //   digitalWrite(m5,HIGH);
+
+  // }
+  
+  // else if((flex2>900)&&(flex4>900)&&(flex5>900))
+  // {
+  //  Serial.print("j");digitalWrite(buzzer,HIGH);
+  //   digitalWrite(m2,HIGH);
+   
+  //   digitalWrite(m4,HIGH);
+  //   digitalWrite(m5,HIGH);
+   
+  // }
+
+  // else if((flex1>900)&&(flex2>900)&&(flex3>900))
+  // {
+  //  Serial.print("l");digitalWrite(buzzer,HIGH);
+  //  digitalWrite(m1,HIGH);
+  //   digitalWrite(m2,HIGH);
+  //   digitalWrite(m3,HIGH);
+   
+  // }
+
+
+  // else if((flex1>900)&&(flex3>900)&&(flex4>900))
+  // {
+  //  Serial.print("m");digitalWrite(buzzer,HIGH);
+  //  digitalWrite(m1,HIGH);
+  
+  //   digitalWrite(m3,HIGH);
+  //   digitalWrite(m4,HIGH);
+  
+  // }
+  
+  // else if((flex1>900)&&(flex3>900)&&(flex5>900))
+  // {
+  //  Serial.print("o");digitalWrite(buzzer,HIGH);
+  //  digitalWrite(m1,HIGH);
+   
+  //   digitalWrite(m3,HIGH);
+   
+  //   digitalWrite(m5,HIGH);
+   
+  // }
+  
+  // else if((flex2>900)&&(flex3>900)&&(flex4>900))
+  // {
+  //  Serial.print("s");digitalWrite(buzzer,HIGH);
+   
+  //   digitalWrite(m2,HIGH);
+  //   digitalWrite(m3,HIGH);
+  //   digitalWrite(m4,HIGH);
+    
+  // }
+  
+  // else if((flex1>900)&&(flex3>900)&&(flex6>900))
+  // {
+  //  Serial.print("u");digitalWrite(buzzer,HIGH);
+  //  digitalWrite(m1,HIGH);
+    
+  //   digitalWrite(m3,HIGH);
+    
+  //   digitalWrite(m6,HIGH);
+  // }
+
+  else if((flex3>900)&&(flex4>900))
+  {
+   Serial.print(" ");digitalWrite(buzzer,HIGH);
+   
+    digitalWrite(m3,HIGH);
+    digitalWrite(m4,HIGH);
+   
+  }
+
+  else if((flex1>590)&&(flex2>869))
+  {
+   Serial.print("b");analogWrite(buzzer,80);
+   digitalWrite(m1,HIGH);
+    digitalWrite(m2,HIGH);
+  }
+  
+  else if((flex1>540)&&(flex4>780))
+  {
+   Serial.print("c");digitalWrite(buzzer,HIGH);
+   digitalWrite(m1,HIGH);
+    digitalWrite(m4,HIGH);
+  }
+
+  else if((flex1>720)&&(flex5>820))
+  {
+   Serial.print("e");digitalWrite(buzzer,HIGH);
+   digitalWrite(m1,HIGH);
+    digitalWrite(m5,HIGH);
+  }
+  // else if((flex1>900)&&(flex3>900))
+  // {
+  //  Serial.print("k");digitalWrite(buzzer,HIGH);
+  //  digitalWrite(m1,HIGH);
+  //   digitalWrite(m3,HIGH);
+  // }
+  // else if((flex2>900)&&(flex4>900))
+  // {
+  //  Serial.print("i");digitalWrite(buzzer,HIGH);
+  //  digitalWrite(m2,HIGH);
+  //  digitalWrite(m4,HIGH);
+  // }
+  else if(flex1>800)  
+  {
+   Serial.print("a");analogWrite(buzzer,80);
+   digitalWrite(m1,HIGH); 
+  }
+  else
+  {
+   digitalWrite(buzzer,LOW);
+   digitalWrite(m1,LOW);
+   digitalWrite(m2,LOW);
+   digitalWrite(m3,LOW);
+   digitalWrite(m4,LOW);
+   digitalWrite(m5,LOW);
+   digitalWrite(m6,LOW);
+
+  }
+  delay(100);
+ }
+  delay(100);
+}
+
+void ff()
+{
+ Serial.print(flex1);
+ Serial.print("-");
+ Serial.print(flex2);
+ Serial.print("-");
+ Serial.print(flex3);
+ Serial.print("-");
+ Serial.print(flex4);
+ Serial.print("-");
+ Serial.print(flex5);
+ Serial.print("-");
+ Serial.println(flex6);  
+}
+
+void single()
+{
+  if(flex1>900)  
+  {
+   digitalWrite(m1,HIGH); 
+  }
+  else
+  {
+   digitalWrite(m1,LOW);
+  }
+  if(flex2>900)  
+  {
+   digitalWrite(m2,HIGH); 
+  }
+  else
+  {
+   digitalWrite(m2,LOW);
+  }
+  if(flex3>900)  
+  {
+   digitalWrite(m3,HIGH); 
+  }
+  else
+  {
+   digitalWrite(m3,LOW);
+  }
+  if(flex4>900)  
+  {
+   digitalWrite(m4,HIGH); 
+  }
+  else
+  {
+   digitalWrite(m4,LOW);
+  }
+  if(flex5>900)  
+  {
+   digitalWrite(m5,HIGH); 
+  }
+  else
+  {
+   digitalWrite(m5,LOW);
+  }
+  if(flex6>900)  
+  {
+   digitalWrite(m6,HIGH); 
+  }
+   else
+  {
+   digitalWrite(m6,LOW);
+  }
+  delay(200);
+}
+
