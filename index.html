@@ -3,114 +3,850 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WAYV Braille Learning System</title>
+    <title>Adaptive Motor Learning Tutor</title>
+    <meta name="description" content="Adaptive Multimodal Motor Learning Tutor — A research prototype for investigating modality-specific motor skill acquisition.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!--  HEADER (persistent across all screens)                     -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
     <header>
-        <div class="logo">WAYV Learning System</div>
-        <div class="status-indicators">
-            <span id="connectionStatus" class="disconnected">● Disconnected</span>
-            <span id="sessionTime">Session: 00m 00s</span>
-        </div>
-        <div class="controls">
-            <button id="connectBtn">Connect Device</button>
-            <button id="endBtn" style="background-color: var(--error-color); color: white; border-color: var(--error-color);">End Session</button>
-            <button id="downloadBtn">Export CSV</button>
-            <button id="voiceBtn" title="Toggle Voice Commands">🎤</button>
+        <div class="logo">Adaptive Motor Learning Tutor</div>
+        <div class="header-right">
+            <span id="session-badge" class="session-badge hidden">Session 1</span>
+            <span id="connection-status" class="connection-badge">
+                <span class="status-dot disconnected"></span> Disconnected
+            </span>
+            <span id="session-timer" class="hidden">00:00</span>
         </div>
     </header>
 
-    <main class="dashboard">
-        <div class="dashboard-column">
-            <div class="card" id="braille-pattern-card">
-                <h2>Current Letter</h2>
-                <div class="braille-display">
-                    <div class="braille-char" id="braille-char-output">A</div>
-                    <div class="braille-cell">
-                        <div class="dot" id="dot-1"></div><div class="dot" id="dot-4"></div>
-                        <div class="dot" id="dot-2"></div><div class="dot" id="dot-5"></div>
-                        <div class="dot" id="dot-3"></div><div class="dot" id="dot-6"></div>
+    <div class="app-container">
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!--  PHASE PROGRESS BAR (hidden on setup/results screens)  -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div id="phase-bar" class="phase-bar hidden">
+            <div class="phase-step" data-phase="profiling-1" id="phase-step-1">Modality 1</div>
+            <div class="phase-step" data-phase="profiling-2" id="phase-step-2">Modality 2</div>
+            <div class="phase-step" data-phase="profiling-3" id="phase-step-3">Modality 3</div>
+            <div class="phase-step" data-phase="profile-results" id="phase-step-results">Results</div>
+            <div class="phase-step" data-phase="training" id="phase-step-training">Training</div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!--  SCREEN 1: SETUP (New Participant — Session 1)         -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="screen-setup" class="screen active">
+            <div class="setup-container">
+                <h1>Adaptive Motor Learning Tutor</h1>
+                <p>A research prototype for investigating modality-specific motor skill acquisition.</p>
+
+                <div class="card">
+                    <div class="card-header">New Participant — Session 1</div>
+
+                    <div class="form-group">
+                        <label for="participant-name">Participant Name</label>
+                        <input type="text" id="participant-name" placeholder="e.g. Jane Doe">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="participant-age">Participant Age</label>
+                        <input type="number" id="participant-age" placeholder="e.g. 24" min="1" max="120">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="participant-hand">Dominant Hand</label>
+                        <select id="participant-hand">
+                            <option value="right">Right-Handed</option>
+                            <option value="left">Left-Handed</option>
+                            <option value="ambidextrous">Ambidextrous</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="participant-experience">Prior Rhythm / Musical Experience</label>
+                        <select id="participant-experience">
+                            <option value="none">None / Minimal (No formal training)</option>
+                            <option value="casual">Casual / Hobbyist (Under 2 years, rhythm games)</option>
+                            <option value="advanced">Trained / Advanced (2+ years regular practice)</option>
+                        </select>
+                    </div>
+
+                    <div id="generated-id-display" class="text-muted" style="font-size:0.8rem; font-weight:500; margin-bottom:1rem; text-align:left;">Generated ID: —</div>
+
+                    <div class="form-group">
+                        <label for="group-select">Experimental Group</label>
+                        <select id="group-select">
+                            <option value="self-selected">Group A — Self-Selected Modality</option>
+                            <option value="system-selected">Group B — System-Selected Modality</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <button id="connect-btn" class="btn btn-secondary" style="width:100%">
+                            <span class="status-dot disconnected"></span> Connect Device
+                        </button>
+                    </div>
+
+                    <!-- Glove Finger Mapping Clarification -->
+                    <div class="card mt-2 mb-3" style="background:var(--bg-tertiary); padding:1rem; border-color:var(--border);">
+                        <h4 style="font-size:0.85rem; font-weight:600; color:var(--text-primary); margin-bottom:0.5rem; text-align:left;">✋ Glove Finger Mapping Reference</h4>
+                        <ul style="font-size:0.8rem; color:var(--text-secondary); text-align:left; padding-left:1.2rem; margin:0; line-height:1.4;">
+                            <li><strong>Right Glove (Index, Middle, Ring)</strong>:
+                                <ul style="padding-left:1rem; margin-top:2px;">
+                                    <li>Finger 1 (Note C): Ring Finger</li>
+                                    <li>Finger 2 (Note D): Middle Finger</li>
+                                    <li>Finger 3 (Note E): Index Finger</li>
+                                </ul>
+                            </li>
+                            <li style="margin-top:6px;"><strong>Left Glove (Index, Middle, Ring)</strong>:
+                                <ul style="padding-left:1rem; margin-top:2px;">
+                                    <li>Finger 4 (Note F): Index Finger</li>
+                                    <li>Finger 5 (Note G): Middle Finger</li>
+                                    <li>Finger 6 (Note A): Ring Finger</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <button id="start-study-btn" class="btn btn-primary" style="width:100%" disabled>
+                        Start Study
+                    </button>
+                    <button id="open-dashboard-setup-btn" class="btn btn-secondary mt-2" style="width:100%">
+                        ⚙ Open Researcher Dashboard
+                    </button>
+                </div>
+
+                <p class="mt-3 text-muted" style="font-size:0.85rem;">
+                    Returning for Session 2?
+                    <a href="#" id="switch-to-returning" style="color:var(--primary);">Click here</a>
+                </p>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!--  SCREEN 2: RETURNING PARTICIPANT (Session 2)           -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="screen-returning" class="screen">
+            <div class="setup-container">
+                <h1>Welcome Back</h1>
+                <p>Enter your Participant ID to continue to Session 2 — Retention Test.</p>
+
+                <div class="card">
+                    <div class="card-header">Returning Participant — Session 2</div>
+
+                    <div class="form-group">
+                        <label for="returning-participant-select">Select Participant</label>
+                        <select id="returning-participant-select">
+                            <option value="">-- Select Completed Day 1 Participant --</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <button id="returning-connect-btn" class="btn btn-secondary" style="width:100%">
+                            <span class="status-dot disconnected"></span> Connect Device
+                        </button>
+                    </div>
+
+                    <!-- Glove Finger Mapping Clarification -->
+                    <div class="card mt-2 mb-3" style="background:var(--bg-tertiary); padding:1rem; border-color:var(--border);">
+                        <h4 style="font-size:0.85rem; font-weight:600; color:var(--text-primary); margin-bottom:0.5rem; text-align:left;">✋ Glove Finger Mapping Reference</h4>
+                        <ul style="font-size:0.8rem; color:var(--text-secondary); text-align:left; padding-left:1.2rem; margin:0; line-height:1.4;">
+                            <li><strong>Right Glove (Index, Middle, Ring)</strong>:
+                                <ul style="padding-left:1rem; margin-top:2px;">
+                                    <li>Finger 1 (Note C): Ring Finger</li>
+                                    <li>Finger 2 (Note D): Middle Finger</li>
+                                    <li>Finger 3 (Note E): Index Finger</li>
+                                </ul>
+                            </li>
+                            <li style="margin-top:6px;"><strong>Left Glove (Index, Middle, Ring)</strong>:
+                                <ul style="padding-left:1rem; margin-top:2px;">
+                                    <li>Finger 4 (Note F): Index Finger</li>
+                                    <li>Finger 5 (Note G): Middle Finger</li>
+                                    <li>Finger 6 (Note A): Ring Finger</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="text-muted" style="font-size:0.8rem;">Data not found? Restore from backup:</label>
+                        <input type="file" id="restore-file-input" accept=".json" style="font-size:0.85rem;">
+                    </div>
+
+                    <button id="start-session2-btn" class="btn btn-primary" style="width:100%" disabled>
+                        Start Retention Test
+                    </button>
+                    <button id="open-dashboard-returning-btn" class="btn btn-secondary mt-2" style="width:100%">
+                        ⚙ Open Researcher Dashboard
+                    </button>
+                </div>
+
+                <p class="mt-3 text-muted" style="font-size:0.85rem;">
+                    New participant?
+                    <a href="#" id="switch-to-setup" style="color:var(--primary);">Click here</a>
+                </p>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!--  SCREEN 3: PROFILING (Phase 1 — All 3 modalities)      -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="screen-profiling" class="screen">
+            <!-- Modality label -->
+            <div class="text-center mt-2">
+                <span id="profiling-modality-label" class="modality-label visual">👁 Visual Mode</span>
+            </div>
+
+            <div class="dashboard-grid">
+                <!-- Sequence Display Card -->
+                <div class="card full-width">
+                    <div class="card-header">
+                        Sequence
+                        <span id="profiling-trial-counter" style="float:right;font-weight:400;color:var(--text-secondary);">Trial 1 / 9</span>
+                    </div>
+                    <div id="sequence-display" class="sequence-display">
+                        <!-- Populated by JS: sequence notes with arrows -->
+                        <span class="text-muted">Waiting to start...</span>
+                    </div>
+                    <div class="flex-center mb-2">
+                        <div id="profiling-status-badge" class="status-badge wait">⚠️ WATCH & FEEL</div>
+                    </div>
+                    <div id="sequence-instruction" class="text-center text-muted mt-1" style="font-size:0.9rem;">
+                        Watch the sequence, then reproduce it.
                     </div>
                 </div>
-                <div class="braille-legend">
-                    Required Fold: <strong id="active-dots">1</strong>
-                </div>
-            </div>
-            <div class="card" id="current-status-card">
-                <h2>Session Control</h2>
-                <div class="status-item">
-                    <span>Mode:</span>
-                    <select id="modeSelect">
-                        <option value="learning">Alphabet Learning</option>
-                        <option value="practice">Word Practice</option>
-                        <option value="test">Test Mode</option>
 
-                    </select>
-                </div>
-                <div class="status-item">
-                    <span>Current Word:</span>
-                    <strong id="current-word-display">-</strong>
-                </div>
-                <div class="status-item">
-                    <span>Voice Status:</span>
-                    <strong id="voice-status">Inactive</strong>
-                </div>
-                <div class="command-panel">
-                    <button id="repeatBtn">Repeat</button>
-                    <button id="hintBtn">Hint</button>
-                    <button id="skipBtn">Skip</button>
-                    <button id="pauseResumeBtn">Pause</button>
-                    <button id="progressBtn">Check Progress</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="dashboard-column wide">
-            <div class="card" id="mastery-path-card">
-                <h2>Alphabet Mastery Path</h2>
-                <div id="mastery-path-container">
+                <!-- Finger Visualization -->
+                <div class="card">
+                    <div class="card-header">Your Input</div>
+                    <div id="finger-viz" class="finger-viz">
+                        <div class="finger-indicator" id="finger-1">
+                            <span class="finger-num">1</span>
+                            <span class="finger-note">C</span>
+                            <span class="finger-pos">R-Ring</span>
+                        </div>
+                        <div class="finger-indicator" id="finger-2">
+                            <span class="finger-num">2</span>
+                            <span class="finger-note">D</span>
+                            <span class="finger-pos">R-Middle</span>
+                        </div>
+                        <div class="finger-indicator" id="finger-3">
+                            <span class="finger-num">3</span>
+                            <span class="finger-note">E</span>
+                            <span class="finger-pos">R-Index</span>
+                        </div>
+                        <div class="finger-indicator" id="finger-4">
+                            <span class="finger-num">4</span>
+                            <span class="finger-note">F</span>
+                            <span class="finger-pos">L-Index</span>
+                        </div>
+                        <div class="finger-indicator" id="finger-5">
+                            <span class="finger-num">5</span>
+                            <span class="finger-note">G</span>
+                            <span class="finger-pos">L-Middle</span>
+                        </div>
+                        <div class="finger-indicator" id="finger-6">
+                            <span class="finger-num">6</span>
+                            <span class="finger-note">A</span>
+                            <span class="finger-pos">L-Ring</span>
+                        </div>
                     </div>
-            </div>
-            <div class="card" id="attempt-history-card">
-                <h2>Attempt History</h2>
-                <div class="history-metrics">
-                    <div><span id="history-accuracy">0%</span>Accuracy</div>
-                    <div><span id="history-avg-time">0s</span>Avg Time</div>
-                    <div><span id="history-current-streak">0</span>Streak</div>
-                    <div><span id="history-best-streak">0</span>Best</div>
+                    <div id="user-sequence-display" class="text-center text-muted mt-1" style="font-size:0.9rem;">
+                        <!-- Shows what the user has entered so far, e.g. "C → D → ?" -->
+                    </div>
                 </div>
-                <ul id="history-list">
-                    <li class="placeholder">Connect the device to begin tracking attempts.</li>
-                </ul>
+
+                <!-- Trial Info -->
+                <div class="card">
+                    <div class="card-header">Trial Info</div>
+                    <div class="stat-row">
+                        <span class="stat-label">Level</span>
+                        <span class="stat-value" id="trial-level">1</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Modality</span>
+                        <span class="stat-value" id="trial-modality">Visual</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Attempt</span>
+                        <span class="stat-value" id="trial-attempt">1 / 3</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Order Accuracy</span>
+                        <span class="stat-value" id="trial-order-score">—</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Timing Accuracy</span>
+                        <span class="stat-value" id="trial-timing-score">—</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Combined Score</span>
+                        <span class="stat-value" id="trial-combined-score">—</span>
+                    </div>
+
+                    <div style="display:flex; gap:0.5rem;" class="mt-3">
+                        <button id="replay-btn" class="btn btn-secondary" style="flex:1;">
+                            Replay Sequence
+                        </button>
+                        <button id="stop-profiling-btn" class="btn btn-danger" style="flex:1;">
+                            Stop Session
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Attempt History -->
+                <div class="card full-width">
+                    <div class="card-header">Attempt History</div>
+                    <ul id="attempt-history" class="attempt-list">
+                        <li class="text-muted text-center" style="padding:1.5rem;">
+                            Attempts will appear here as you complete trials.
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!--  SCREEN 4: PROFILE RESULTS                             -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="screen-profile-results" class="screen">
+            <div class="setup-container" style="max-width:700px;">
+                <h1>Profiling Complete</h1>
+                <p>Here are your performance scores across all three learning modalities.</p>
+
+                <div class="modality-scores">
+                    <div class="score-card visual" id="result-card-visual">
+                        <div class="score-value" id="profile-visual-score">—</div>
+                        <div class="score-label">Visual</div>
+                        <div class="score-bar"><div class="score-bar-fill" id="profile-visual-bar" style="width:0%;background:var(--modality-visual);"></div></div>
+                    </div>
+                    <div class="score-card audio" id="result-card-audio">
+                        <div class="score-value" id="profile-audio-score">—</div>
+                        <div class="score-label">Audio</div>
+                        <div class="score-bar"><div class="score-bar-fill" id="profile-audio-bar" style="width:0%;background:var(--modality-audio);"></div></div>
+                    </div>
+                    <div class="score-card haptic" id="result-card-haptic">
+                        <div class="score-value" id="profile-haptic-score">—</div>
+                        <div class="score-label">Haptic</div>
+                        <div class="score-bar"><div class="score-bar-fill" id="profile-haptic-bar" style="width:0%;background:var(--modality-haptic);"></div></div>
+                    </div>
+                </div>
+
+                <!-- System Recommendation (Group B) -->
+                <div id="system-recommendation" class="card mt-3 hidden">
+                    <div class="card-header">System Recommendation</div>
+                    <p class="text-center" style="font-size:1.1rem;">
+                        Based on your performance, the best modality for you is:
+                    </p>
+                    <p class="text-center" style="font-size:2rem;font-weight:700;" id="system-best-modality">—</p>
+                    <button id="accept-system-btn" class="btn btn-primary mt-2" style="width:100%;">
+                        Continue with System Selection
+                    </button>
+                </div>
+
+                <!-- Self-Selection (Group A) -->
+                <div id="self-selection" class="card mt-3 hidden">
+                    <div class="card-header">Choose Your Modality</div>
+                    <p class="text-center text-secondary">
+                        Based on your experience, which modality do you prefer for training?
+                    </p>
+                    <div style="display:flex;gap:0.75rem;margin-top:1rem;">
+                        <button id="self-select-visual" class="btn btn-modality-visual" style="flex:1;">
+                            👁 Visual
+                        </button>
+                        <button id="self-select-audio" class="btn btn-modality-audio" style="flex:1;">
+                            🔊 Audio
+                        </button>
+                        <button id="self-select-haptic" class="btn btn-modality-haptic" style="flex:1;">
+                            ✋ Haptic
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!--  SCREEN 5: TRAINING (Phase 2 — Single modality)        -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="screen-training" class="screen">
+            <!-- Modality label -->
+            <div class="text-center mt-2">
+                <span id="training-modality-label" class="modality-label visual">Training Mode</span>
+            </div>
+
+            <div class="dashboard-grid">
+                <!-- Sequence Display Card -->
+                <div class="card full-width">
+                    <div class="card-header">
+                        Sequence
+                        <span id="training-trial-counter" style="float:right;font-weight:400;color:var(--text-secondary);">Trial 1 / 6</span>
+                    </div>
+                    <div id="training-sequence-display" class="sequence-display">
+                        <span class="text-muted">Waiting to start...</span>
+                    </div>
+                    <div class="flex-center mb-2">
+                        <div id="training-status-badge" class="status-badge wait">⚠️ WATCH & FEEL</div>
+                    </div>
+                    <div id="training-instruction" class="text-center text-muted mt-1" style="font-size:0.9rem;">
+                        Reproduce the sequence.
+                    </div>
+                </div>
+
+                <!-- Finger Viz (reuses same structure, different IDs for training) -->
+                <div class="card">
+                    <div class="card-header">Your Input</div>
+                    <div id="training-finger-viz" class="finger-viz">
+                        <div class="finger-indicator" id="training-finger-1">
+                            <span class="finger-num">1</span>
+                            <span class="finger-note">C</span>
+                            <span class="finger-pos">R-Ring</span>
+                        </div>
+                        <div class="finger-indicator" id="training-finger-2">
+                            <span class="finger-num">2</span>
+                            <span class="finger-note">D</span>
+                            <span class="finger-pos">R-Middle</span>
+                        </div>
+                        <div class="finger-indicator" id="training-finger-3">
+                            <span class="finger-num">3</span>
+                            <span class="finger-note">E</span>
+                            <span class="finger-pos">R-Index</span>
+                        </div>
+                        <div class="finger-indicator" id="training-finger-4">
+                            <span class="finger-num">4</span>
+                            <span class="finger-note">F</span>
+                            <span class="finger-pos">L-Index</span>
+                        </div>
+                        <div class="finger-indicator" id="training-finger-5">
+                            <span class="finger-num">5</span>
+                            <span class="finger-note">G</span>
+                            <span class="finger-pos">L-Middle</span>
+                        </div>
+                        <div class="finger-indicator" id="training-finger-6">
+                            <span class="finger-num">6</span>
+                            <span class="finger-note">A</span>
+                            <span class="finger-pos">L-Ring</span>
+                        </div>
+                    </div>
+                    <div id="training-user-sequence" class="text-center text-muted mt-1" style="font-size:0.9rem;"></div>
+                </div>
+
+                <!-- Trial Info -->
+                <div class="card">
+                    <div class="card-header">Trial Info</div>
+                    <div class="stat-row">
+                        <span class="stat-label">Level</span>
+                        <span class="stat-value" id="training-level">1</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Attempt</span>
+                        <span class="stat-value" id="training-attempt">1 / 3</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Order Accuracy</span>
+                        <span class="stat-value" id="training-order-score">—</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Timing Accuracy</span>
+                        <span class="stat-value" id="training-timing-score">—</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Combined Score</span>
+                        <span class="stat-value" id="training-combined-score">—</span>
+                    </div>
+
+                    <div style="display:flex; gap:0.5rem;" class="mt-3">
+                        <button id="training-replay-btn" class="btn btn-secondary" style="flex:1;">
+                            Replay Sequence
+                        </button>
+                        <button id="stop-training-btn" class="btn btn-danger" style="flex:1;">
+                            Stop Session
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Training Attempt History -->
+                <div class="card full-width">
+                    <div class="card-header">Attempt History</div>
+                    <ul id="training-attempt-history" class="attempt-list">
+                        <li class="text-muted text-center" style="padding:1.5rem;">
+                            Training attempts will appear here.
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!--  SCREEN 6: SESSION 1 COMPLETE                          -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="screen-session1-complete" class="screen">
+            <div class="setup-container" style="max-width:600px;">
+                <h1>Session 1 Complete ✓</h1>
+                <p>Great work! Your data has been saved and backed up.</p>
+
+                <div class="card">
+                    <div class="card-header">Session 1 Summary</div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="value" id="s1-total-trials">0</div>
+                            <div class="label">Total Trials</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="value" id="s1-avg-order">0%</div>
+                            <div class="label">Avg Order Acc.</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="value" id="s1-avg-timing">0%</div>
+                            <div class="label">Avg Timing Acc.</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="value" id="s1-avg-combined">0%</div>
+                            <div class="label">Avg Combined</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-row mt-3">
+                        <span class="stat-label">Best Modality</span>
+                        <span class="stat-value" id="s1-best-modality">—</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Assigned Modality</span>
+                        <span class="stat-value" id="s1-assigned-modality">—</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Experimental Group</span>
+                        <span class="stat-value" id="s1-group">—</span>
+                    </div>
+                </div>
+
+                <div class="card mt-3" style="background:rgba(79,143,252,0.08);border-color:var(--primary);">
+                    <p style="margin:0;font-size:0.95rem;">
+                        📋 A JSON backup of your data has been automatically downloaded.<br><br>
+                        ⏰ <strong>Please return on a different day for Session 2</strong> — the Retention Test.
+                        When you return, enter your Participant ID to continue.
+                    </p>
+                </div>
+
+                <button id="s1-download-backup" class="btn btn-secondary mt-3" style="width:100%;">
+                    Download Backup Again
+                </button>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!--  SCREEN 7: RETENTION TEST (Session 2)                  -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="screen-retention" class="screen">
+            <div class="text-center mt-2">
+                <span class="modality-label" style="background:rgba(255,255,255,0.08);color:var(--text-primary);">
+                    🧠 Retention Test — No Cues
+                </span>
+            </div>
+
+            <div class="dashboard-grid">
+                <!-- Sequence Display Card -->
+                <div class="card full-width">
+                    <div class="card-header">
+                        Reproduce from Memory
+                        <span id="retention-trial-counter" style="float:right;font-weight:400;color:var(--text-secondary);">Trial 1 / 3</span>
+                    </div>
+                    <div id="retention-sequence-display" class="sequence-display">
+                        <span id="retention-sequence-name" style="font-size:1.5rem;font-weight:600;color:var(--text-primary);">
+                            Sequence 1
+                        </span>
+                    </div>
+                    <div class="flex-center mb-2">
+                        <div id="retention-status-badge" class="status-badge wait">⚠️ WATCH & FEEL</div>
+                    </div>
+                    <div class="text-center text-muted mt-1" style="font-size:0.9rem;">
+                        Reproduce the sequence you learned in Session 1 — no visual, audio, or haptic hints.
+                    </div>
+                </div>
+
+                <!-- Finger Viz -->
+                <div class="card">
+                    <div class="card-header">Your Input</div>
+                    <div id="retention-finger-viz" class="finger-viz">
+                        <div class="finger-indicator" id="retention-finger-1">
+                            <span class="finger-num">1</span>
+                            <span class="finger-note">C</span>
+                            <span class="finger-pos">R-Ring</span>
+                        </div>
+                        <div class="finger-indicator" id="retention-finger-2">
+                            <span class="finger-num">2</span>
+                            <span class="finger-note">D</span>
+                            <span class="finger-pos">R-Middle</span>
+                        </div>
+                        <div class="finger-indicator" id="retention-finger-3">
+                            <span class="finger-num">3</span>
+                            <span class="finger-note">E</span>
+                            <span class="finger-pos">R-Index</span>
+                        </div>
+                        <div class="finger-indicator" id="retention-finger-4">
+                            <span class="finger-num">4</span>
+                            <span class="finger-note">F</span>
+                            <span class="finger-pos">L-Index</span>
+                        </div>
+                        <div class="finger-indicator" id="retention-finger-5">
+                            <span class="finger-num">5</span>
+                            <span class="finger-note">G</span>
+                            <span class="finger-pos">L-Middle</span>
+                        </div>
+                        <div class="finger-indicator" id="retention-finger-6">
+                            <span class="finger-num">6</span>
+                            <span class="finger-note">A</span>
+                            <span class="finger-pos">L-Ring</span>
+                        </div>
+                    </div>
+                    <div id="retention-user-sequence" class="text-center text-muted mt-1" style="font-size:0.9rem;"></div>
+                </div>
+
+                <!-- Retention Trial Info -->
+                <div class="card">
+                    <div class="card-header">Trial Info</div>
+                    <div class="stat-row">
+                        <span class="stat-label">Level</span>
+                        <span class="stat-value" id="retention-level">1</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Order Accuracy</span>
+                        <span class="stat-value" id="retention-order-score">—</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Timing Accuracy</span>
+                        <span class="stat-value" id="retention-timing-score">—</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Combined Score</span>
+                        <span class="stat-value" id="retention-combined-score">—</span>
+                    </div>
+                    <button id="stop-retention-btn" class="btn btn-danger mt-3" style="width:100%;">
+                        Stop Session
+                    </button>
+                </div>
+
+                <!-- Retention Attempt History -->
+                <div class="card full-width">
+                    <div class="card-header">Retention Results</div>
+                    <ul id="retention-attempt-history" class="attempt-list">
+                        <li class="text-muted text-center" style="padding:1.5rem;">
+                            Retention results will appear here.
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!--  SCREEN 8: FINAL RESULTS (Study Complete)              -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="screen-final-results" class="screen">
+            <div class="setup-container" style="max-width:800px;">
+                <h1>Study Complete 🎉</h1>
+                <p>Here is a full summary of your performance across both sessions.</p>
+
+                <!-- Profiling Summary -->
+                <div class="card">
+                    <div class="card-header">Profiling Scores (Session 1)</div>
+                    <div class="modality-scores">
+                        <div class="score-card visual">
+                            <div class="score-value" id="final-visual-score">—</div>
+                            <div class="score-label">Visual</div>
+                        </div>
+                        <div class="score-card audio">
+                            <div class="score-value" id="final-audio-score">—</div>
+                            <div class="score-label">Audio</div>
+                        </div>
+                        <div class="score-card haptic">
+                            <div class="score-value" id="final-haptic-score">—</div>
+                            <div class="score-label">Haptic</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Training Summary -->
+                <div class="card mt-3">
+                    <div class="card-header">Training Performance (Session 1)</div>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="value" id="final-training-order">0%</div>
+                            <div class="label">Order Accuracy</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="value" id="final-training-timing">0%</div>
+                            <div class="label">Timing Accuracy</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="value" id="final-training-combined">0%</div>
+                            <div class="label">Combined Score</div>
+                        </div>
+                    </div>
+                    <div class="stat-row mt-2">
+                        <span class="stat-label">Training Modality</span>
+                        <span class="stat-value" id="final-training-modality">—</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Selection Method</span>
+                        <span class="stat-value" id="final-selection-method">—</span>
+                    </div>
+                </div>
+
+                <!-- Retention Summary -->
+                <div class="card mt-3">
+                    <div class="card-header">Retention Test (Session 2)</div>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="value" id="final-retention-order">0%</div>
+                            <div class="label">Order Accuracy</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="value" id="final-retention-timing">0%</div>
+                            <div class="label">Timing Accuracy</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="value" id="final-retention-combined">0%</div>
+                            <div class="label">Combined Score</div>
+                        </div>
+                    </div>
+                    <div class="stat-row mt-2">
+                        <span class="stat-label">Days Between Sessions</span>
+                        <span class="stat-value" id="final-days-between">—</span>
+                    </div>
+                </div>
+
+                <!-- Export Buttons -->
+                <div style="display:flex;gap:1rem;margin-top:1.5rem;">
+                    <button id="export-csv-btn" class="btn btn-primary" style="flex:1;">
+                        Export Trial CSV
+                    </button>
+                    <button id="export-summary-csv-btn" class="btn btn-primary" style="flex:1;">
+                        Export Summary CSV
+                    </button>
+                    <button id="export-json-btn" class="btn btn-secondary" style="flex:1;">
+                        Export JSON Backup
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!--  SERIAL DEBUG MONITOR (persistent for troubleshooting)      -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <div id="debug-console" class="card mt-4 mb-2" style="background:#0c1033; border-color:rgba(255,255,255,0.06); padding:1rem;">
+            <h3 style="font-size:0.85rem; font-weight:600; color:var(--text-secondary); border-bottom:none; margin:0; display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="debug-console-toggle">
+                <span>⚙ Serial Debug Monitor</span>
+                <span id="debug-console-arrow">▲</span>
+            </h3>
+            <div id="debug-console-content" style="margin-top:0.75rem;">
+                <div id="debug-serial-log" style="font-family:monospace; font-size:0.75rem; color:var(--text-secondary); background:rgba(0,0,0,0.3); padding:0.6rem; border-radius:4px; max-height:100px; overflow-y:auto; text-align:left; line-height:1.4;">
+                    [Console initialized. Awaiting Serial data...]
+                </div>
+                <p style="font-size:0.72rem; color:var(--text-muted); margin-top:0.6rem; margin-bottom:0; text-align:left; line-height:1.4;">
+                    💡 <em>Tip: If you bend fingers and see letters like 'a', 'b', 'c' instead of 'F1', 'F2', you need to upload the new <strong>arduino.ino</strong> firmware to the Arduino board. If you see nothing, verify connection status.</em>
+                </p>
             </div>
         </div>
 
-        <div class="dashboard-column">
-             <div class="card" id="learning-progress-card">
-                <h2>Overall Progress</h2>
-                <div class="progress-summary">
-                    <div><span>Accuracy</span><strong id="progress-accuracy">0%</strong></div>
-                    <div><span>Avg Time</span><strong id="progress-avg-time">0s</strong></div>
-                    <div><span>Total</span><strong id="progress-total-attempts">0</strong></div>
-                </div>
-                <div class="progress-bar-container">
-                    <span>Accuracy Progress</span>
-                    <div class="progress-bar"><div id="accuracy-progress-bar" style="width: 0%;"></div></div>
-                </div>
-                 <canvas id="progressChart" height="120"></canvas>
+    </div><!-- /.app-container -->
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!--  STOP SESSION MODAL DIALOG                                 -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div id="stop-dialog" class="modal hidden">
+        <div class="modal-content card">
+            <h2 style="border-bottom:none; padding-bottom:0; margin-bottom:0.5rem;">Stop Session?</h2>
+            <p class="mt-2 text-secondary" style="font-size:0.9rem;">Would you like to save the study data collected so far?</p>
+            <div style="display:flex; flex-direction:column; gap:0.75rem; margin-top:1.5rem;">
+                <button id="stop-save-btn" class="btn btn-success">Yes, Save and Export Data</button>
+                <button id="stop-discard-btn" class="btn btn-danger">No, Discard Data</button>
+                <button id="stop-resume-btn" class="btn btn-secondary">Cancel and Resume Session</button>
             </div>
-            <div class="card" id="error-analysis-card">
-                <h3>Focus Areas</h3>
-                <div id="focus-areas">
-                   <p>Letters with the highest error rates will appear here.</p>
+        </div>
+    </div>
+
+    <!-- Save Confirmation Modal -->
+    <div id="save-confirmation-dialog" class="modal hidden">
+        <div class="modal-content card" style="max-width:450px;">
+            <h2 style="border-bottom:none; padding-bottom:0; margin-bottom:0.5rem; text-align:center;">Save Study Results?</h2>
+            <p class="mt-2 text-secondary" style="font-size:0.9rem; text-align:center;">Would you like to save the study results for <strong id="save-confirm-name">—</strong> (<span id="save-confirm-id">—</span>)?</p>
+            <div style="display:flex; flex-direction:column; gap:0.75rem; margin-top:1.5rem;">
+                <button id="save-confirm-yes-btn" class="btn btn-success">Yes, Save Data</button>
+                <button id="save-confirm-no-btn" class="btn btn-danger">No, Discard Data</button>
+                <button id="save-confirm-cancel-btn" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Researcher Dashboard Modal -->
+    <div id="researcher-dashboard" class="modal hidden">
+        <div class="modal-content card" style="max-width:1100px; width:90%; height:85vh; display:flex; flex-direction:column; padding:1.5rem; background:var(--bg-secondary); border-color:var(--border);">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:0.75rem; margin-bottom:1rem;">
+                <h2 style="border-bottom:none; margin:0; font-size:1.4rem;">⚙ Researcher Control Center</h2>
+                <button id="close-dashboard-btn" class="btn btn-secondary" style="padding:0.4rem 1rem;">Close</button>
+            </div>
+            
+            <div class="dashboard-layout" style="flex:1; display:flex; gap:1.5rem; overflow:hidden;">
+                <!-- Left panel: List of participants -->
+                <div style="flex:4; display:flex; flex-direction:column; border-right:1px solid var(--border); padding-right:1.5rem; overflow:hidden;">
+                    <h3 style="font-size:1rem; margin-top:0; margin-bottom:0.75rem; color:var(--text-secondary);">Participants</h3>
+                    <div style="flex:1; overflow-y:auto;">
+                        <table style="width:100%; border-collapse:collapse; font-size:0.85rem; text-align:left;">
+                            <thead>
+                                <tr style="border-bottom:2px solid var(--border); color:var(--text-secondary);">
+                                    <th style="padding:0.5rem; width:45%;">Name (ID)</th>
+                                    <th style="padding:0.5rem; width:15%;">Age</th>
+                                    <th style="padding:0.5rem; width:20%;">Group</th>
+                                    <th style="padding:0.5rem; width:20%;">Modality</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dashboard-participant-list">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Right panel: Participant Detail & Notes -->
+                <div style="flex:6; display:flex; flex-direction:column; overflow:hidden;">
+                    <h3 style="font-size:1rem; margin-top:0; margin-bottom:0.75rem; color:var(--text-secondary);">Participant Details</h3>
+                    <div id="dashboard-detail-view" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:1rem;">
+                        <div class="text-muted" style="text-align:center; margin-top:3rem;">Select a participant from the list to view detailed trial history and edit notes.</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Footer actions -->
+            <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border); padding-top:1rem; margin-top:1rem; flex-wrap:wrap; gap:1rem;">
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <label for="sheets-webhook-input" style="font-size:0.8rem; margin:0; white-space:nowrap; color:var(--text-secondary);">Sheets Webhook Sync URL:</label>
+                    <input type="text" id="sheets-webhook-input" placeholder="https://webhook.site/..." style="width:300px; font-size:0.8rem; padding:0.4rem 0.6rem; border-radius:4px; background:var(--bg-tertiary); border:1px solid var(--border); color:var(--text-primary);">
+                </div>
+                <div style="display:flex; gap:0.75rem; align-items:center;">
+                    <button id="dashboard-export-trials-btn" class="btn btn-primary">Export Master Trial CSV</button>
+                    <button id="dashboard-export-summary-btn" class="btn btn-primary">Export Summary CSV</button>
+                    <button id="dashboard-import-btn" class="btn btn-secondary">Import JSON Backup</button>
+                    <input type="file" id="dashboard-file-input" accept=".json" style="display:none;">
+                    <button id="dashboard-delete-all-btn" class="btn btn-danger">Delete All Data</button>
                 </div>
             </div>
         </div>
-    </main>
-    
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!--  TOAST NOTIFICATION (for feedback messages)                 -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div id="toast" class="toast hidden">
+        <span id="toast-message"></span>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>

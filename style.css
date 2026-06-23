@@ -1,154 +1,1450 @@
+/* ============================================================
+   Adaptive Motor Learning Tutor — Design System
+   Premium dark-themed research prototype UI
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* ----------------------------------------------------------
+   1. CSS Custom Properties (Design Tokens)
+   ---------------------------------------------------------- */
 :root {
-    --bg-color: #f4f7fa;
-    --card-bg-color: #ffffff;
-    --primary-color: #007bff;
-    --text-color: #333;
-    --text-secondary-color: #6c757d;
-    --border-color: #e9ecef;
-    --success-color: #28a745;
-    --error-color: #dc3545;
-    --warning-color: #ffc107;
-    --mastered-color: #198754;
-    --difficult-color: #fd7e14;
-    --font-family: 'Roboto', sans-serif;
+    /* Backgrounds */
+    --bg-primary: #0a0e27;
+    --bg-secondary: #111638;
+    --bg-tertiary: #1a1f4a;
+
+    /* Typography */
+    --text-primary: #e8eaf6;
+    --text-secondary: #9fa8da;
+    --text-muted: #5c6bc0;
+
+    /* Accent Colors */
+    --primary: #4f8ffc;
+    --primary-glow: rgba(79, 143, 252, 0.3);
+    --success: #2ecc71;
+    --error: #ff6b6b;
+    --warning: #f39c12;
+
+    /* Modality Colors */
+    --modality-visual: #f1c40f;
+    --modality-audio: #9b59b6;
+    --modality-haptic: #1abc9c;
+
+    /* Surfaces & Borders */
+    --border: rgba(255, 255, 255, 0.08);
+    --glass: rgba(17, 22, 56, 0.8);
+    --glass-border: rgba(255, 255, 255, 0.12);
+
+    /* Radii */
+    --radius: 12px;
+    --radius-lg: 20px;
+
+    /* Elevation */
+    --shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+
+    /* Font Stack */
+    --font: 'Inter', 'Roboto', system-ui, sans-serif;
+}
+
+/* ----------------------------------------------------------
+   2. Reset & Global Styles
+   ---------------------------------------------------------- */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    scroll-behavior: smooth;
 }
 
 body {
-    font-family: var(--font-family);
-    background-color: var(--bg-color);
-    margin: 0;
-    color: var(--text-color);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font);
+    line-height: 1.6;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
 }
 
+/* ----------------------------------------------------------
+   3. Layout
+   ---------------------------------------------------------- */
+.app-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+/* ----------------------------------------------------------
+   4. Header
+   ---------------------------------------------------------- */
 header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 1rem 2rem;
-    background-color: var(--card-bg-color);
-    border-bottom: 1px solid var(--border-color);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--glass-border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 }
 
-.logo { font-size: 1.5rem; font-weight: 700; color: var(--primary-color); }
-.status-indicators span { margin-left: 1rem; font-size: 0.9rem; }
-#connectionStatus.disconnected { color: var(--error-color); }
-#connectionStatus.connected { color: var(--success-color); }
-
-.controls button {
-    margin-left: 0.5rem;
-    padding: 0.5rem 1rem;
-    border: 1px solid var(--border-color);
-    background-color: #f8f9fa;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: 500;
-    transition: background-color 0.2s;
+.logo {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--primary);
+    letter-spacing: -0.5px;
 }
-.controls button:hover { background-color: #e9ecef; }
-#connectBtn { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
-#connectBtn:hover { background-color: #0056b3; }
-#voiceBtn { font-size: 1.2rem; padding: 0.4rem 0.7rem; }
-/* Hide the Hint button from the Command Panel */
-#hintBtn {display: none;}
-#endBtn:hover {
-    background-color: #b02a37 !important; /* A darker red on hover */
-    border-color: #a52834 !important;
-}
-.dashboard { display: flex; padding: 1.5rem; gap: 1.5rem; align-items: flex-start; }
-.dashboard-column { flex: 1; display: flex; flex-direction: column; gap: 1.5rem; }
-.dashboard-column.wide { flex: 1.5; }
 
+.header-right {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+/* ----------------------------------------------------------
+   5. Screen Management
+   ---------------------------------------------------------- */
+.screen {
+    display: none;
+}
+
+.screen.active {
+    display: block;
+    animation: fadeIn 0.3s ease forwards;
+}
+
+/* ----------------------------------------------------------
+   6. Cards
+   ---------------------------------------------------------- */
 .card {
-    background-color: var(--card-bg-color);
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    box-shadow: var(--shadow);
+}
+
+.card-header {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.card h2,
+.card h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-top: 0;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.card.glass {
+    background: var(--glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-color: var(--glass-border);
+}
+
+/* ----------------------------------------------------------
+   7. Phase Progress Bar
+   ---------------------------------------------------------- */
+.phase-bar {
+    display: flex;
+    gap: 0;
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    margin: 1.5rem 0;
+}
+
+.phase-step {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    text-align: center;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.phase-step.active {
+    background-color: var(--primary);
+    color: #ffffff;
+}
+
+.phase-step.completed {
+    background-color: var(--bg-tertiary);
+    color: var(--success);
+}
+
+.phase-step::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 20%;
+    height: 60%;
+    width: 1px;
+    background-color: var(--border);
+}
+
+.phase-step:last-child::after {
+    display: none;
+}
+
+/* ----------------------------------------------------------
+   8. Buttons
+   ---------------------------------------------------------- */
+button,
+.btn {
+    padding: 0.6rem 1.4rem;
     border-radius: 8px;
-    border: 1px solid var(--border-color);
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    font-family: inherit;
+    line-height: 1.4;
+}
+
+.btn-primary {
+    background-color: var(--primary);
+    color: #ffffff;
+    border-color: var(--primary);
+}
+
+.btn-primary:hover {
+    filter: brightness(1.1);
+    box-shadow: 0 0 20px var(--primary-glow);
+}
+
+.btn-secondary {
+    background-color: transparent;
+    color: var(--text-secondary);
+    border-color: var(--border);
+}
+
+.btn-secondary:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.btn-success {
+    background-color: var(--success);
+    color: #ffffff;
+}
+
+.btn-success:hover {
+    filter: brightness(1.1);
+    box-shadow: 0 0 16px rgba(46, 204, 113, 0.3);
+}
+
+.btn-danger {
+    background-color: var(--error);
+    color: #ffffff;
+}
+
+.btn-danger:hover {
+    filter: brightness(1.1);
+    box-shadow: 0 0 16px rgba(255, 107, 107, 0.3);
+}
+
+.btn-modality-visual {
+    background-color: var(--modality-visual);
+    color: #1a1a2e;
+}
+
+.btn-modality-visual:hover {
+    filter: brightness(1.1);
+}
+
+.btn-modality-audio {
+    background-color: var(--modality-audio);
+    color: #ffffff;
+}
+
+.btn-modality-audio:hover {
+    filter: brightness(1.1);
+}
+
+.btn-modality-haptic {
+    background-color: var(--modality-haptic);
+    color: #ffffff;
+}
+
+.btn-modality-haptic:hover {
+    filter: brightness(1.1);
+}
+
+button:disabled,
+.btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* ----------------------------------------------------------
+   9. Form Inputs
+   ---------------------------------------------------------- */
+input,
+select {
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-family: inherit;
+    width: 100%;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+input:focus,
+select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 0.4rem;
+    display: block;
+}
+
+/* ----------------------------------------------------------
+   10. Finger Visualization
+   ---------------------------------------------------------- */
+.finger-viz {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
     padding: 1.5rem;
 }
-.card h2, .card h3 {
-    margin-top: 0;
-    font-size: 1.1rem;
-    font-weight: 500;
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 0.75rem;
+
+.finger-indicator {
+    width: 68px;
+    height: 96px;
+    border-radius: 12px;
+    background-color: var(--bg-tertiary);
+    border: 2px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    cursor: default;
+}
+
+.finger-indicator .finger-num {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.finger-indicator .finger-note {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+.finger-indicator.active {
+    border-color: var(--primary);
+    background-color: rgba(79, 143, 252, 0.15);
+    box-shadow: 0 0 20px var(--primary-glow);
+    transform: scale(1.08);
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.finger-indicator.active .finger-note {
+    color: var(--primary);
+}
+
+.finger-indicator.correct {
+    border-color: var(--success);
+    background-color: rgba(46, 204, 113, 0.15);
+}
+
+.finger-indicator.incorrect {
+    border-color: var(--error);
+    background-color: rgba(255, 107, 107, 0.15);
+}
+
+/* ----------------------------------------------------------
+   11. Sequence Display
+   ---------------------------------------------------------- */
+.sequence-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 2rem;
+    min-height: 120px;
+}
+
+.sequence-note {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    transition: all 0.4s ease;
+    position: relative;
+}
+
+.sequence-note.highlight {
+    color: var(--primary);
+    background-color: rgba(79, 143, 252, 0.15);
+    transform: scale(1.15);
+    text-shadow: 0 0 20px var(--primary-glow);
+}
+
+.sequence-note.played {
+    color: var(--success);
+}
+
+.sequence-note.error-note {
+    color: var(--error);
+}
+
+.sequence-arrow {
+    color: var(--text-muted);
+    font-size: 1.2rem;
+    margin: 0 0.25rem;
+}
+
+/* Modality Labels */
+.modality-label {
+    text-align: center;
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 0.4rem 1rem;
+    border-radius: 20px;
+    display: inline-block;
     margin-bottom: 1rem;
 }
 
-/* Braille Pattern Card */
-.braille-display { display: flex; align-items: center; justify-content: center; gap: 2rem; margin: 1rem 0; }
-.braille-char { font-size: 5rem; font-weight: 700; color: var(--primary-color); }
-.braille-cell { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.dot { width: 22px; height: 22px; border-radius: 50%; background-color: #e9ecef; }
-.dot.active { background-color: var(--primary-color); }
-.braille-legend { text-align: center; color: var(--text-secondary-color); font-size: 0.9rem; }
+.modality-label.visual {
+    background-color: rgba(241, 196, 15, 0.15);
+    color: var(--modality-visual);
+}
 
-/* Status Card */
-.status-item { display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0; font-size: 0.9rem; }
-.status-item select { border: 1px solid var(--border-color); border-radius: 4px; padding: 0.35rem; width: 50%; }
+.modality-label.audio {
+    background-color: rgba(155, 89, 182, 0.15);
+    color: var(--modality-audio);
+}
 
-/* New Command Panel Style */
+.modality-label.haptic {
+    background-color: rgba(26, 188, 156, 0.15);
+    color: var(--modality-haptic);
+}
+
+/* ----------------------------------------------------------
+   12. Modality Score Cards
+   ---------------------------------------------------------- */
+.modality-scores {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+.score-card {
+    text-align: center;
+    padding: 1.5rem;
+    border-radius: var(--radius);
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.score-card.visual {
+    border-color: rgba(241, 196, 15, 0.3);
+    background-color: rgba(241, 196, 15, 0.05);
+}
+
+.score-card.audio {
+    border-color: rgba(155, 89, 182, 0.3);
+    background-color: rgba(155, 89, 182, 0.05);
+}
+
+.score-card.haptic {
+    border-color: rgba(26, 188, 156, 0.3);
+    background-color: rgba(26, 188, 156, 0.05);
+}
+
+.score-card.visual.best {
+    border-width: 2px;
+    box-shadow: 0 0 20px rgba(241, 196, 15, 0.25);
+}
+
+.score-card.audio.best {
+    border-width: 2px;
+    box-shadow: 0 0 20px rgba(155, 89, 182, 0.25);
+}
+
+.score-card.haptic.best {
+    border-width: 2px;
+    box-shadow: 0 0 20px rgba(26, 188, 156, 0.25);
+}
+
+.score-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+}
+
+.score-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+}
+
+.score-bar {
+    height: 6px;
+    background-color: var(--bg-tertiary);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 0.75rem;
+}
+
+.score-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.8s ease;
+}
+
+/* ----------------------------------------------------------
+   13. Progress / Stats Bars
+   ---------------------------------------------------------- */
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.stat-row:last-child {
+    border-bottom: none;
+}
+
+.stat-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.stat-value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1rem;
+}
+
+.stat-card {
+    text-align: center;
+    background-color: var(--bg-tertiary);
+    padding: 1rem;
+    border-radius: var(--radius);
+}
+
+.stat-card .value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.stat-card .label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+}
+
+/* ----------------------------------------------------------
+   14. Attempt History List
+   ---------------------------------------------------------- */
+.attempt-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.attempt-item {
+    display: flex;
+    align-items: center;
+    padding: 0.6rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+    gap: 0.75rem;
+    font-size: 0.85rem;
+}
+
+.attempt-item:last-child {
+    border-bottom: none;
+}
+
+.attempt-icon {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.attempt-item.correct .attempt-icon {
+    color: var(--success);
+}
+
+.attempt-item.incorrect .attempt-icon {
+    color: var(--error);
+}
+
+.attempt-details {
+    flex: 1;
+}
+
+.attempt-scores {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+
+/* Custom Scrollbar for attempt list */
+.attempt-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.attempt-list::-webkit-scrollbar-track {
+    background-color: var(--bg-tertiary);
+    border-radius: 3px;
+}
+
+.attempt-list::-webkit-scrollbar-thumb {
+    background-color: var(--primary);
+    border-radius: 3px;
+}
+
+.attempt-list::-webkit-scrollbar-thumb:hover {
+    background-color: var(--text-muted);
+}
+
+/* ----------------------------------------------------------
+   15. Setup Screen
+   ---------------------------------------------------------- */
+.setup-container {
+    max-width: 500px;
+    margin: 3rem auto;
+    text-align: center;
+}
+
+.setup-container h1 {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+}
+
+.setup-container p {
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+    text-align: left;
+}
+
+.session-badge {
+    display: inline-block;
+    padding: 0.3rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background-color: rgba(79, 143, 252, 0.15);
+    color: var(--primary);
+}
+
+/* ----------------------------------------------------------
+   16. Connection Status
+   ---------------------------------------------------------- */
+.status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+}
+
+.status-dot.connected {
+    background-color: var(--success);
+    box-shadow: 0 0 8px var(--success);
+}
+
+.status-dot.disconnected {
+    background-color: var(--error);
+}
+
+.connection-badge {
+    font-size: 0.8rem;
+    padding: 0.3rem 0.8rem;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+}
+
+/* Legacy connection status classes */
+#connectionStatus.connected {
+    color: var(--success);
+}
+
+#connectionStatus.disconnected {
+    color: var(--error);
+}
+
+/* ----------------------------------------------------------
+   17. Dashboard Grid
+   ---------------------------------------------------------- */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+}
+
+.dashboard-grid .full-width {
+    grid-column: 1 / -1;
+}
+
+/* Legacy dashboard layout */
+.dashboard {
+    display: flex;
+    padding: 1.5rem;
+    gap: 1.5rem;
+    align-items: flex-start;
+}
+
+.dashboard-column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.dashboard-column.wide {
+    flex: 1.5;
+}
+
+/* ----------------------------------------------------------
+   18. Results / Summary Screen
+   ---------------------------------------------------------- */
+.results-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+}
+
+.result-card {
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius);
+    padding: 2rem;
+    text-align: center;
+    border: 1px solid var(--border);
+}
+
+.result-card h3 {
+    margin-top: 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.result-value {
+    font-size: 3rem;
+    font-weight: 700;
+}
+
+/* ----------------------------------------------------------
+   19. Braille Pattern Card (Legacy)
+   ---------------------------------------------------------- */
+.braille-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+    margin: 1rem 0;
+}
+
+.braille-char {
+    font-size: 5rem;
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.braille-cell {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.dot {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    transition: all 0.3s ease;
+}
+
+.dot.active {
+    background-color: var(--primary);
+    box-shadow: 0 0 10px var(--primary-glow);
+    border-color: var(--primary);
+}
+
+.braille-legend {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+/* ----------------------------------------------------------
+   20. Status Items (Legacy)
+   ---------------------------------------------------------- */
+.status-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 0;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.status-item select {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.35rem 0.6rem;
+    width: 50%;
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.status-indicators span {
+    margin-left: 1rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+/* ----------------------------------------------------------
+   21. Command Panel (Legacy)
+   ---------------------------------------------------------- */
 .command-panel {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
     gap: 0.5rem;
     margin-top: 1.5rem;
 }
+
 .command-panel button {
     padding: 0.75rem;
-    background-color: #6c757d;
-    color: white;
-    border: none;
-    border-radius: 5px;
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.command-panel button:hover {
+    background-color: var(--primary);
+    color: #ffffff;
+    border-color: var(--primary);
+}
+
+.command-panel #progressBtn {
+    grid-column: 1 / -1;
+}
+
+/* Hide Hint button from Command Panel */
+#hintBtn {
+    display: none;
+}
+
+/* ----------------------------------------------------------
+   22. Mastery Path (Legacy)
+   ---------------------------------------------------------- */
+#mastery-path-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    position: relative;
+}
+
+.letter-tile {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: #ffffff;
+    position: relative;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+    font-size: 0.85rem;
+}
+
+.letter-tile.pending {
+    background-color: var(--bg-tertiary);
+    color: var(--text-muted);
+}
+
+.letter-tile.current {
+    background-color: var(--primary);
+    box-shadow: 0 0 12px var(--primary-glow);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: scale(1.1);
+}
+
+.letter-tile.mastered {
+    background-color: var(--success);
+}
+
+.letter-tile.difficult {
+    background-color: var(--warning);
+}
+
+/* ----------------------------------------------------------
+   23. Attempt History (Legacy)
+   ---------------------------------------------------------- */
+.history-metrics {
+    display: flex;
+    justify-content: space-around;
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+.history-metrics span {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.history-metrics div {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+#history-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 180px;
+    overflow-y: auto;
+}
+
+#history-list li {
+    display: flex;
+    align-items: center;
+    padding: 0.6rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+#history-list li:last-child {
+    border-bottom: none;
+}
+
+#history-list .status-icon {
+    font-size: 1.2rem;
+    margin-right: 1rem;
+}
+
+li.correct .status-icon {
+    color: var(--success);
+}
+
+li.incorrect .status-icon {
+    color: var(--error);
+}
+
+.attempt-time {
     font-size: 0.9rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.placeholder {
+    color: var(--text-muted);
+    text-align: center;
+    padding: 2rem;
+    font-size: 0.9rem;
+}
+
+/* ----------------------------------------------------------
+   24. Learning Progress (Legacy)
+   ---------------------------------------------------------- */
+.progress-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.progress-summary span {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.progress-summary strong {
+    display: block;
+    font-size: 1.5rem;
+    margin-top: 0.25rem;
+    color: var(--text-primary);
+}
+
+.progress-bar-container {
+    margin-bottom: 1rem;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 10px;
+    background-color: var(--bg-tertiary);
+    border-radius: 5px;
+    overflow: hidden;
+    margin-top: 0.5rem;
+}
+
+#accuracy-progress-bar {
+    height: 100%;
+    background-color: var(--primary);
+    border-radius: 5px;
+    transition: width 0.3s ease;
+}
+
+/* ----------------------------------------------------------
+   25. Error Analysis / Focus Areas (Legacy)
+   ---------------------------------------------------------- */
+#focus-areas p {
+    color: var(--text-secondary);
+}
+
+.focus-item {
+    padding: 0.75rem;
+    background-color: rgba(243, 156, 18, 0.1);
+    border-left: 4px solid var(--warning);
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+    border-radius: 4px;
+    color: var(--text-secondary);
+}
+
+.focus-item strong {
+    font-size: 1.2rem;
+    color: var(--warning);
+}
+
+.focus-item small {
+    display: block;
+    margin-top: 0.25rem;
+    color: var(--text-muted);
+}
+
+/* ----------------------------------------------------------
+   26. Connect / Voice Buttons (Legacy)
+   ---------------------------------------------------------- */
+.controls button {
+    margin-left: 0.5rem;
+}
+
+#connectBtn {
+    background-color: var(--primary);
+    color: #ffffff;
+    border-color: var(--primary);
+}
+
+#connectBtn:hover {
+    filter: brightness(1.1);
+    box-shadow: 0 0 20px var(--primary-glow);
+}
+
+#voiceBtn {
+    font-size: 1.2rem;
+    padding: 0.4rem 0.7rem;
+}
+
+#endBtn:hover {
+    background-color: #c0392b !important;
+    border-color: #c0392b !important;
+}
+
+/* ----------------------------------------------------------
+   27. Responsive Design
+   ---------------------------------------------------------- */
+@media (max-width: 900px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .modality-scores {
+        grid-template-columns: 1fr;
+    }
+
+    .results-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .finger-viz {
+        flex-wrap: wrap;
+    }
+
+    .dashboard {
+        flex-direction: column;
+    }
+
+    .dashboard-column.wide {
+        flex: 1;
+    }
+
+    .progress-summary {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    header {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+    }
+
+    .sequence-note {
+        font-size: 1.4rem;
+        padding: 0.3rem 0.6rem;
+    }
+
+    .sequence-display {
+        padding: 1rem;
+        min-height: 80px;
+    }
+
+    .setup-container {
+        margin: 1.5rem auto;
+        padding: 0 1rem;
+    }
+
+    .setup-container h1 {
+        font-size: 1.5rem;
+    }
+
+    .app-container {
+        padding: 0.5rem;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* ----------------------------------------------------------
+   28. Utility Classes
+   ---------------------------------------------------------- */
+.text-center {
+    text-align: center;
+}
+
+.text-success {
+    color: var(--success);
+}
+
+.text-error {
+    color: var(--error);
+}
+
+.text-muted {
+    color: var(--text-muted);
+}
+
+/* Margin Top */
+.mt-1 { margin-top: 0.5rem; }
+.mt-2 { margin-top: 1rem; }
+.mt-3 { margin-top: 1.5rem; }
+.mt-4 { margin-top: 2rem; }
+
+/* Margin Bottom */
+.mb-1 { margin-bottom: 0.5rem; }
+.mb-2 { margin-bottom: 1rem; }
+.mb-3 { margin-bottom: 1.5rem; }
+.mb-4 { margin-bottom: 2rem; }
+
+/* Display */
+.hidden {
+    display: none !important;
+}
+
+/* Flexbox */
+.flex-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Gap */
+.gap-1 { gap: 0.5rem; }
+.gap-2 { gap: 1rem; }
+.gap-3 { gap: 1.5rem; }
+
+/* ----------------------------------------------------------
+   29. Keyframe Animations
+   ---------------------------------------------------------- */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulse-glow {
+    0% {
+        box-shadow: 0 0 8px var(--primary-glow);
+    }
+    50% {
+        box-shadow: 0 0 24px var(--primary-glow), 0 0 48px rgba(79, 143, 252, 0.15);
+    }
+    100% {
+        box-shadow: 0 0 8px var(--primary-glow);
+    }
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.animate-in {
+    animation: slideUp 0.4s ease forwards;
+}
+
+/* ----------------------------------------------------------
+   30. General Scrollbar Styling
+   ---------------------------------------------------------- */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background-color: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: var(--bg-tertiary);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: var(--text-muted);
+}
+
+/* ----------------------------------------------------------
+   31. Selection Highlight
+   ---------------------------------------------------------- */
+::selection {
+    background-color: rgba(79, 143, 252, 0.3);
+    color: #ffffff;
+}
+
+/* ----------------------------------------------------------
+   32. Toast Notification Style
+   ---------------------------------------------------------- */
+.toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--glass-border);
+    color: var(--text-primary);
+    padding: 0.75rem 1.5rem;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    z-index: 1000;
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
+    opacity: 0;
+    pointer-events: none;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+/* ----------------------------------------------------------
+   33. Session Timer Style
+   ---------------------------------------------------------- */
+#session-timer {
+    font-family: monospace, monospace;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background-color: var(--bg-tertiary);
+    padding: 0.3rem 0.8rem;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+}
+
+/* ----------------------------------------------------------
+   34. Stop Session Modal Styles
+   ---------------------------------------------------------- */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(10, 14, 39, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.modal-content {
+    max-width: 400px;
+    width: 90%;
+    text-align: center;
+    animation: slideUp 0.3s ease forwards;
+}
+
+.finger-indicator .finger-pos {
+    font-size: 0.65rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+/* ----------------------------------------------------------
+   35. Play/Wait Status Badges & Animations
+   ---------------------------------------------------------- */
+.status-badge {
+    display: inline-block;
+    padding: 0.4rem 1rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s ease;
+}
+
+.status-badge.wait {
+    background-color: var(--modality-visual); /* Amber/warning yellow */
+    color: #0a0e27;
+    animation: flash-opacity 1.5s infinite ease-in-out;
+}
+
+.status-badge.go {
+    background-color: var(--success); /* Emerald green */
+    color: #ffffff;
+}
+
+@keyframes flash-opacity {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+}
+
+/* ----------------------------------------------------------
+   36. Researcher Dashboard Table & Textarea
+   ---------------------------------------------------------- */
+#researcher-dashboard table th, 
+#researcher-dashboard table td {
+    padding: 0.6rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+
+#researcher-dashboard tbody tr {
     cursor: pointer;
     transition: background-color 0.2s;
 }
-.command-panel button:hover { background-color: #5a6268; }
-.command-panel #progressBtn { grid-column: 1 / -1; } /* Make last button span full width */
 
-/* Mastery Path */
-#mastery-path-container { display: flex; flex-wrap: wrap; gap: 8px; position: relative; }
-.letter-tile {
-    width: 40px; height: 40px; border-radius: 50%; display: flex;
-    align-items: center; justify-content: center; font-weight: bold;
-    color: white; position: relative; transition: all 0.3s ease;
-    border: 2px solid transparent;
+#researcher-dashboard tbody tr:hover {
+    background-color: var(--bg-tertiary);
 }
-.letter-tile.pending { background-color: #ced4da; }
-.letter-tile.current { background-color: var(--primary-color); box-shadow: 0 0 10px var(--primary-color); border-color: white; transform: scale(1.1); }
-.letter-tile.mastered { background-color: var(--mastered-color); }
-.letter-tile.difficult { background-color: var(--difficult-color); }
 
-/* Attempt History */
-.history-metrics { display: flex; justify-content: space-around; text-align: center; margin-bottom: 1rem; }
-.history-metrics span { display: block; font-size: 1.5rem; font-weight: 700; }
-.history-metrics div { font-size: 0.8rem; color: var(--text-secondary-color); }
-#history-list { list-style: none; padding: 0; margin: 0; max-height: 180px; overflow-y: auto; }
-#history-list li { display: flex; align-items: center; padding: 0.6rem; border-bottom: 1px solid var(--border-color); }
-#history-list li:last-child { border-bottom: none; }
-#history-list .status-icon { font-size: 1.2rem; margin-right: 1rem; }
-li.correct .status-icon { color: var(--success-color); }
-li.incorrect .status-icon { color: var(--error-color); }
-.attempt-details { flex-grow: 1; }
-.attempt-details small { color: var(--text-secondary-color); font-size: 0.8rem; margin-left: 0.5rem; }
-.attempt-time { font-size: 0.9rem; color: var(--text-secondary-color); font-weight: 500; }
-.placeholder { color: var(--text-secondary-color); text-align: center; padding: 2rem; }
-
-/* Learning Progress */
-.progress-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; text-align: center; margin-bottom: 1.5rem; }
-.progress-summary span { font-size: 0.8rem; color: var(--text-secondary-color); }
-.progress-summary strong { display: block; font-size: 1.5rem; margin-top: 0.25rem; }
-.progress-bar-container { margin-bottom: 1rem; }
-.progress-bar { width: 100%; height: 10px; background-color: var(--border-color); border-radius: 5px; overflow: hidden; margin-top: 0.5rem; }
-#accuracy-progress-bar { height: 100%; background-color: var(--primary-color); border-radius: 5px; transition: width 0.3s ease; }
-
-/* Error Analysis / Focus Areas */
-#focus-areas p { color: var(--text-secondary-color); }
-.focus-item {
-    padding: 0.75rem; background-color: #fff3cd; border-left: 4px solid var(--warning-color);
-    margin-bottom: 0.75rem; font-size: 0.9rem; border-radius: 4px;
+#researcher-dashboard tbody tr.selected {
+    background-color: rgba(79, 143, 252, 0.15);
+    color: var(--text-primary);
 }
-.focus-item strong { font-size: 1.2rem; color: #664d03; }
-.focus-item small { display: block; margin-top: 0.25rem; color: #6c757d; }
+
+.dashboard-notes-textarea {
+    width: 100%;
+    height: 110px;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    padding: 0.6rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+    resize: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.dashboard-notes-textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+.dashboard-trial-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    text-align: left;
+}
+
+.dashboard-trial-table th,
+.dashboard-trial-table td {
+    padding: 0.4rem;
+    border-bottom: 1px solid var(--border);
+}
+
