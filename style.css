@@ -30,6 +30,7 @@
     --modality-visual: #f1c40f;
     --modality-audio: #9b59b6;
     --modality-haptic: #1abc9c;
+    --modality-visual-haptic: #e67e22;
 
     /* Surfaces & Borders */
     --border: rgba(255, 255, 255, 0.08);
@@ -293,6 +294,15 @@ button,
     filter: brightness(1.1);
 }
 
+.btn-modality-visual-haptic {
+    background-color: var(--modality-visual-haptic);
+    color: #ffffff;
+}
+
+.btn-modality-visual-haptic:hover {
+    filter: brightness(1.1);
+}
+
 button:disabled,
 .btn:disabled {
     opacity: 0.4;
@@ -459,12 +469,17 @@ label {
     color: var(--modality-haptic);
 }
 
+.modality-label.visual-haptic {
+    background-color: rgba(230, 126, 34, 0.15);
+    color: var(--modality-visual-haptic);
+}
+
 /* ----------------------------------------------------------
    12. Modality Score Cards
    ---------------------------------------------------------- */
 .modality-scores {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 1rem;
 }
 
@@ -491,6 +506,11 @@ label {
     background-color: rgba(26, 188, 156, 0.05);
 }
 
+.score-card.visual-haptic {
+    border-color: rgba(230, 126, 34, 0.3);
+    background-color: rgba(230, 126, 34, 0.05);
+}
+
 .score-card.visual.best {
     border-width: 2px;
     box-shadow: 0 0 20px rgba(241, 196, 15, 0.25);
@@ -504,6 +524,35 @@ label {
 .score-card.haptic.best {
     border-width: 2px;
     box-shadow: 0 0 20px rgba(26, 188, 156, 0.25);
+}
+
+.score-card.visual-haptic.best {
+    border-width: 2px;
+    box-shadow: 0 0 20px rgba(230, 126, 34, 0.25);
+}
+
+/* Adaptive Tutor Alert Banner */
+.adaptive-banner {
+    background: linear-gradient(135deg, rgba(230, 126, 34, 0.2), rgba(79, 143, 252, 0.2));
+    border: 1px solid var(--modality-visual-haptic);
+    border-radius: var(--radius);
+    padding: 0.8rem 1.2rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.8rem;
+    animation: fadeIn 0.4s ease forwards;
+}
+
+.adaptive-banner .adaptive-icon {
+    font-size: 1.4rem;
+}
+
+.adaptive-banner .adaptive-text {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
 }
 
 .score-value {

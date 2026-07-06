@@ -45,9 +45,10 @@ const RETENTION_SEQ_INDICES = [0, 1, 0];
 
 // Latin Square for counterbalancing modality order
 const MODALITY_ORDERS = [
-    ['visual', 'audio', 'haptic'],
-    ['audio', 'haptic', 'visual'],
-    ['haptic', 'visual', 'audio'],
+    ['visual', 'audio', 'haptic', 'visual-haptic'],
+    ['audio', 'visual-haptic', 'visual', 'haptic'],
+    ['haptic', 'visual', 'visual-haptic', 'audio'],
+    ['visual-haptic', 'haptic', 'audio', 'visual'],
 ];
 
 // Profiling weights
@@ -308,6 +309,8 @@ class ModalityEngine {
                 return this._presentAudio(sequence, display, instruction);
             case 'haptic':
                 return this._presentHaptic(sequence, display, instruction);
+            case 'visual-haptic':
+                return this._presentVisualHaptic(sequence, display, instruction);
         }
     }
 
@@ -376,6 +379,42 @@ class ModalityEngine {
 
         display.innerHTML = '<span class="text-muted" style="font-size:1.2rem;">Now reproduce what you felt!</span>';
         instruction.textContent = 'Reproduce the sequence from memory.';
+    }
+
+    async _presentVisualHaptic(sequence, display, instruction) {
+        instruction.textContent = 'Watch the screen and feel the vibration pattern, then reproduce it.';
+
+        // Build note elements
+        display.innerHTML = '';
+        const noteEls = [];
+        sequence.forEach((finger, i) => {
+            const noteEl = document.createElement('span');
+            noteEl.className = 'sequence-note';
+            noteEl.textContent = FINGER_NOTES[finger];
+            noteEl.id = `${display.id}-note-${i}`;
+            display.appendChild(noteEl);
+            noteEls.push(noteEl);
+
+            if (i < sequence.length - 1) {
+                const arrow = document.createElement('span');
+                arrow.className = 'sequence-arrow';
+                arrow.textContent = '→';
+                display.appendChild(arrow);
+            }
+        });
+
+        // Highlight notes on screen in tempo AND trigger vibration on glove (Audio muted)
+        for (let i = 0; i < noteEls.length; i++) {
+            noteEls[i].classList.add('highlight');
+            if (this.serial.isConnected) {
+                this.serial.vibrateFinger(sequence[i], TARGET_NOTE_DURATION);
+            }
+            await new Promise(r => setTimeout(r, TARGET_NOTE_DURATION + TARGET_NOTE_GAP));
+            noteEls[i].classList.remove('highlight');
+            noteEls[i].classList.add('played');
+        }
+
+        instruction.textContent = 'Now reproduce the sequence!';
     }
 
     /**
@@ -629,14 +668,14 @@ class DataCollector {
             daysBetween = Math.round((new Date(p.session2Date) - new Date(p.session1Date)) / (1000 * 60 * 60 * 24));
         }
 
-        let csv = 'ParticipantID,DominantHand,Group,VisualScore,AudioScore,HapticScore,' +
-                  'SelfSelected,SystemSelected,ActiveModality,' +
+        let csv = 'ParticipantID,DominantHand,Group,VisualScore,AudioScore,HapticScore,VisualHapticScore,' +
+                  'SelfSelected,SystemSelected,ActiveModality,AdaptationTriggered,' +
                   'TrainingAvgOrderAcc,TrainingAvgTimingAcc,TrainingAvgCombined,' +
                   'RetentionOrderAcc,RetentionTimingAcc,RetentionCombined,DaysBetweenSessions\r\n';
 
         csv += `${p.participantId},${p.dominantHand || 'right'},${p.experimentalGroup},` +
-               `${ms.visual?.composite || 0},${ms.audio?.composite || 0},${ms.haptic?.composite || 0},` +
-               `${p.selfSelectedModality || 'N/A'},${p.systemSelectedModality || 'N/A'},${p.activeModality || 'N/A'},` +
+               `${ms.visual?.composite || 0},${ms.audio?.composite || 0},${ms.haptic?.composite || 0},${ms['visual-haptic']?.composite || 0},` +
+               `${p.selfSelectedModality || 'N/A'},${p.systemSelectedModality || 'N/A'},${p.activeModality || 'N/A'},${p.adaptationTriggered ? 'Yes' : 'No'},` +
                `${avgTrainOrder.toFixed(3)},${avgTrainTiming.toFixed(3)},${avgTrainCombined.toFixed(3)},` +
                `${p.retentionScores?.orderAccuracy?.toFixed(3) || 0},${p.retentionScores?.timingAccuracy?.toFixed(3) || 0},` +
                `${p.retentionScores?.combined?.toFixed(3) || 0},${daysBetween}\r\n`;
@@ -676,8 +715,8 @@ class DataCollector {
         const participants = this.getAllParticipants();
         if (participants.length === 0) { alert('No participant data found.'); return; }
 
-        let csv = 'ParticipantID,Name,Age,Experience,DominantHand,Group,VisualScore,AudioScore,HapticScore,' +
-                  'SelfSelected,SystemSelected,ActiveModality,' +
+        let csv = 'ParticipantID,Name,Age,Experience,DominantHand,Group,VisualScore,AudioScore,HapticScore,VisualHapticScore,' +
+                  'SelfSelected,SystemSelected,ActiveModality,AdaptationTriggered,' +
                   'TrainingAvgOrderAcc,TrainingAvgTimingAcc,TrainingAvgCombined,' +
                   'RetentionOrderAcc,RetentionTimingAcc,RetentionCombined,DaysBetweenSessions,Notes\r\n';
 
@@ -696,8 +735,8 @@ class DataCollector {
             const sanitizedNotes = (p.notes || '').replace(/"/g, '""').replace(/\r?\n/g, ' ');
 
             csv += `${p.participantId},"${p.name || ''}",${p.age || ''},${p.priorExperience || 'none'},${p.dominantHand || 'right'},${p.experimentalGroup},` +
-                   `${ms.visual?.composite || 0},${ms.audio?.composite || 0},${ms.haptic?.composite || 0},` +
-                   `${p.selfSelectedModality || 'N/A'},${p.systemSelectedModality || 'N/A'},${p.activeModality || 'N/A'},` +
+                   `${ms.visual?.composite || 0},${ms.audio?.composite || 0},${ms.haptic?.composite || 0},${ms['visual-haptic']?.composite || 0},` +
+                   `${p.selfSelectedModality || 'N/A'},${p.systemSelectedModality || 'N/A'},${p.activeModality || 'N/A'},${p.adaptationTriggered ? 'Yes' : 'No'},` +
                    `${avgTrainOrder.toFixed(3)},${avgTrainTiming.toFixed(3)},${avgTrainCombined.toFixed(3)},` +
                    `${p.retentionScores?.orderAccuracy?.toFixed(3) || 0},${p.retentionScores?.timingAccuracy?.toFixed(3) || 0},` +
                    `${p.retentionScores?.combined?.toFixed(3) || 0},${daysBetween},"${sanitizedNotes}"\r\n`;
@@ -748,12 +787,14 @@ class DataCollector {
                 visual: ms.visual?.composite || 0,
                 audio: ms.audio?.composite || 0,
                 haptic: ms.haptic?.composite || 0,
+                visualHaptic: ms['visual-haptic']?.composite || 0,
                 best: ms.bestModality || 'N/A'
             },
             selection: {
                 selfSelected: p.selfSelectedModality || 'N/A',
                 systemSelected: p.systemSelectedModality || 'N/A',
-                active: p.activeModality || 'N/A'
+                active: p.activeModality || 'N/A',
+                adaptationTriggered: p.adaptationTriggered || false
             },
             training: {
                 avgOrderAccuracy: avgTrainOrder,
@@ -879,7 +920,7 @@ class LearnerProfiler {
      * @returns {object} - { visual: {..., composite}, audio: {...}, haptic: {...}, bestModality }
      */
     static computeScores(profilingTrials) {
-        const modalities = ['visual', 'audio', 'haptic'];
+        const modalities = ['visual', 'audio', 'haptic', 'visual-haptic'];
         const scores = {};
 
         modalities.forEach(mod => {
@@ -1039,6 +1080,7 @@ class UIRenderer {
             visual: { text: '👁 Visual Mode', cls: 'visual' },
             audio: { text: '🔊 Audio Mode', cls: 'audio' },
             haptic: { text: '✋ Haptic Mode', cls: 'haptic' },
+            'visual-haptic': { text: '👁✋ Visual+Haptic Mode', cls: 'visual-haptic' },
         };
         const el = document.getElementById(elementId);
         if (el && LABELS[modality]) {
@@ -1148,9 +1190,11 @@ class UIRenderer {
         const scoresContainer = document.querySelector('.modality-scores');
         if (scoresContainer) scoresContainer.classList.add('hidden');
 
-        ['visual', 'audio', 'haptic'].forEach(mod => {
-            document.getElementById(`profile-${mod}-score`).textContent = scores[mod]?.composite || 0;
-            document.getElementById(`profile-${mod}-bar`).style.width = `${scores[mod]?.composite || 0}%`;
+        ['visual', 'audio', 'haptic', 'visual-haptic'].forEach(mod => {
+            const scoreEl = document.getElementById(`profile-${mod}-score`);
+            const barEl = document.getElementById(`profile-${mod}-bar`);
+            if (scoreEl) scoreEl.textContent = scores[mod]?.composite || 0;
+            if (barEl) barEl.style.width = `${scores[mod]?.composite || 0}%`;
         });
 
         // Highlight best
@@ -1162,7 +1206,7 @@ class UIRenderer {
         if (group === 'system-selected') {
             document.getElementById('system-recommendation').classList.remove('hidden');
             document.getElementById('self-selection').classList.add('hidden');
-            const LABELS = { visual: '👁 Visual', audio: '🔊 Audio', haptic: '✋ Haptic' };
+            const LABELS = { visual: '👁 Visual', audio: '🔊 Audio', haptic: '✋ Haptic', 'visual-haptic': '👁✋ Visual+Haptic' };
             document.getElementById('system-best-modality').textContent = LABELS[scores.bestModality] || scores.bestModality;
             document.getElementById('system-best-modality').style.color = `var(--modality-${scores.bestModality})`;
         } else {
@@ -1193,6 +1237,7 @@ class UIRenderer {
         set('final-visual-score', data.visualScore);
         set('final-audio-score', data.audioScore);
         set('final-haptic-score', data.hapticScore);
+        set('final-visual-haptic-score', data.visualHapticScore || 0);
         set('final-training-order', data.trainingOrder);
         set('final-training-timing', data.trainingTiming);
         set('final-training-combined', data.trainingCombined);
@@ -1329,6 +1374,8 @@ class AppController {
         document.getElementById('self-select-visual').addEventListener('click', () => this._selectModality('visual', null));
         document.getElementById('self-select-audio').addEventListener('click', () => this._selectModality('audio', null));
         document.getElementById('self-select-haptic').addEventListener('click', () => this._selectModality('haptic', null));
+        document.getElementById('self-select-visual-haptic').addEventListener('click', () => this._selectModality('visual-haptic', null));
+        document.getElementById('start-next-modality-btn').addEventListener('click', () => this._startProfilingBlock());
 
         // Training screen
         document.getElementById('training-replay-btn').addEventListener('click', () => this._replaySequence());
@@ -1580,7 +1627,8 @@ class AppController {
             if (code >= 48 && code <= 57) charSum += (code - 48);
             else charSum += code;
         }
-        this.modalityOrder = MODALITY_ORDERS[charSum % 3];
+        this.modalityOrder = MODALITY_ORDERS[charSum % 4];
+        this.consecutiveFailures = 0;
 
         // Create participant record
         this.data.createParticipant(this.participantId, this.group, name, age, experience, hand);
@@ -1682,7 +1730,7 @@ class AppController {
 
     // ─── Profiling Flow ───────────────────────────────────────────
     _startProfilingBlock() {
-        if (this.currentModalityIndex >= 3) {
+        if (this.currentModalityIndex >= 4) {
             // All modalities profiled — compute scores
             this._finishProfiling();
             return;
@@ -1707,9 +1755,13 @@ class AppController {
 
     async _runProfilingTrial() {
         if (this.currentTrialIndex >= PROFILING_LEVELS.length) {
-            // Move to next modality
+            // Move to next modality via break screen
             this.currentModalityIndex++;
-            this._startProfilingBlock();
+            if (this.currentModalityIndex >= 4) {
+                this._finishProfiling();
+            } else {
+                this._showProfilingBreak();
+            }
             return;
         }
 
@@ -1719,11 +1771,36 @@ class AppController {
         this.currentLevel = level;
         this.currentAttempt = 0;
 
-        // Update trial counter
+        // Update trial counter (4 modalities * 3 trials = 12 total)
         const totalTrial = this.currentModalityIndex * 3 + this.currentTrialIndex + 1;
-        document.getElementById('profiling-trial-counter').textContent = `Trial ${totalTrial} / 9`;
+        document.getElementById('profiling-trial-counter').textContent = `Trial ${totalTrial} / 12`;
 
         await this._presentAndCollect();
+    }
+
+    _showProfilingBreak() {
+        const nextMod = this.modalityOrder[this.currentModalityIndex];
+        const prevMod = this.modalityOrder[this.currentModalityIndex - 1];
+
+        const MOD_TEXTS = {
+            visual: 'Visual Mode (👁)',
+            audio: 'Audio Mode (🔊)',
+            haptic: 'Haptic Mode (✋)',
+            'visual-haptic': 'Visual + Haptic Mode (👁✋)',
+        };
+
+        const INSTRUCTIONS = {
+            visual: 'Watch the on-screen note boxes carefully. They will highlight in rhythm. Remember the pattern and reproduce it on your fingers!',
+            audio: 'Listen carefully to the audio tones. The screen will NOT display note boxes! Reproduce the pattern from sound alone.',
+            haptic: 'Feel the vibrations on your glove fingers. The screen will NOT display note boxes! Reproduce the pattern from touch alone.',
+            'visual-haptic': 'Watch the screen highlights and feel the glove vibrations together. Reproduce the combined multi-sensory pattern!',
+        };
+
+        document.getElementById('break-completed-text').textContent = `Great job! You have finished the trials for ${MOD_TEXTS[prevMod] || 'this modality'}.`;
+        this.ui.setModalityLabel('break-next-modality-badge', nextMod);
+        document.getElementById('break-instructions-text').textContent = INSTRUCTIONS[nextMod] || 'Prepare for the upcoming trial block.';
+
+        this.ui.showScreen('screen-profiling-break');
     }
 
     _finishProfiling() {
@@ -1732,7 +1809,7 @@ class AppController {
         this.data.setModalityScores(scores);
 
         // Update phase bar
-        this.ui.updatePhaseBar(true, 'profile-results', ['profiling-1', 'profiling-2', 'profiling-3']);
+        this.ui.updatePhaseBar(true, 'profile-results', ['profiling-1', 'profiling-2', 'profiling-3', 'profiling-4']);
 
         // Show results
         this.ui.showScreen('screen-profile-results');
@@ -1759,10 +1836,14 @@ class AppController {
         this.currentTrialIndex = 0;
         this.currentAttempt = 0;
         this.successfulTrainingRuns = 0;
+        this.consecutiveFailures = 0;
+
+        const banner = document.getElementById('adaptive-assist-banner');
+        if (banner) banner.classList.add('hidden');
 
         this.ui.showScreen('screen-training');
         this.ui.setModalityLabel('training-modality-label', this.currentModality);
-        this.ui.updatePhaseBar(true, 'training', ['profiling-1', 'profiling-2', 'profiling-3', 'profile-results']);
+        this.ui.updatePhaseBar(true, 'training', ['profiling-1', 'profiling-2', 'profiling-3', 'profiling-4', 'profile-results']);
 
         this._runTrainingTrial();
     }
@@ -2038,6 +2119,15 @@ class AppController {
             isGoodEnough = result.orderAccuracy === 1.0 && result.timingAccuracy >= 0.70;
             if (isGoodEnough) {
                 this.successfulTrainingRuns++;
+                this.consecutiveFailures = 0;
+            } else {
+                if (this.group === 'system-selected') {
+                    this.consecutiveFailures++;
+                    if (this.consecutiveFailures >= 2) {
+                        this._triggerAdaptiveModalityShift();
+                        this.consecutiveFailures = 0;
+                    }
+                }
             }
         } else {
             isGoodEnough = result.combinedScore >= 0.7; // 70% threshold
@@ -2075,6 +2165,39 @@ class AppController {
                 this._presentAndCollect();
             }
         }, 1500);
+    }
+
+    _triggerAdaptiveModalityShift() {
+        let newMod = 'visual-haptic';
+        let msg = '';
+
+        if (this.currentModality !== 'visual-haptic') {
+            newMod = 'visual-haptic';
+            msg = '⚡ Adaptive Assist Engaged: Upgraded to Visual+Haptic multi-sensory feedback to assist finger targeting!';
+        } else {
+            // Fall back to 2nd best profiling modality
+            const scores = this.data.participantData?.modalityScores || {};
+            const sortedMods = ['visual', 'audio', 'haptic', 'visual-haptic'].sort((a, b) => (scores[b]?.composite || 0) - (scores[a]?.composite || 0));
+            newMod = sortedMods[1] || 'haptic';
+            msg = `⚡ Adaptive Assist Engaged: Shifted to ${newMod.toUpperCase()} feedback to reduce sensory overload!`;
+        }
+
+        this.currentModality = newMod;
+        if (this.data.participantData) {
+            this.data.participantData.activeModality = newMod;
+            this.data.participantData.adaptationTriggered = true;
+            this.data._save();
+        }
+
+        this.ui.setModalityLabel('training-modality-label', newMod);
+
+        const banner = document.getElementById('adaptive-assist-banner');
+        const textEl = document.getElementById('adaptive-assist-text');
+        if (banner && textEl) {
+            textEl.textContent = msg;
+            banner.classList.remove('hidden');
+        }
+        this.ui.showToast(msg);
     }
 
     // ─── Replay ───────────────────────────────────────────────────
@@ -2315,8 +2438,9 @@ class AppController {
                     <div>Group: <span style="color:var(--text-primary); font-weight:500;">${p.experimentalGroup === 'self-selected' ? 'Group A (Self)' : 'Group B (System)'}</span></div>
                     <div>Active Modality: <span style="color:var(--text-primary); font-weight:500;">${p.activeModality || 'None'}</span></div>
                     <div>Status: <span style="color:${p.studyComplete ? 'var(--success)' : 'var(--warning)'}; font-weight:600;">${p.studyComplete ? 'Completed' : 'Session 1 Complete'}</span></div>
+                    <div>Adaptation Shifted: <span style="color:${p.adaptationTriggered ? 'var(--warning)' : 'var(--text-primary)'}; font-weight:600;">${p.adaptationTriggered ? '⚡ Yes' : 'No'}</span></div>
                 </div>
-                <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:0.5rem; margin-top:0.8rem; padding-top:0.8rem; border-top:1px solid var(--border);">
+                <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:0.5rem; margin-top:0.8rem; padding-top:0.8rem; border-top:1px solid var(--border);">
                     <div style="text-align:center;">
                         <span style="font-size:0.75rem; color:var(--text-muted);">Visual Score</span><br>
                         <strong>${ms.visual?.composite || 0}</strong>
@@ -2328,6 +2452,10 @@ class AppController {
                     <div style="text-align:center;">
                         <span style="font-size:0.75rem; color:var(--text-muted);">Haptic Score</span><br>
                         <strong>${ms.haptic?.composite || 0}</strong>
+                    </div>
+                    <div style="text-align:center;">
+                        <span style="font-size:0.75rem; color:var(--text-muted);">Vis+Hap Score</span><br>
+                        <strong>${ms['visual-haptic']?.composite || 0}</strong>
                     </div>
                 </div>
             </div>

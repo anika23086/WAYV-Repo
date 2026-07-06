@@ -314,6 +314,31 @@
         </section>
 
         <!-- ═══════════════════════════════════════════════════════ -->
+        <!--  INTER-MODALITY PROFILING BREAK SCREEN                -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <section id="screen-profiling-break" class="screen">
+            <div class="setup-container" style="max-width:650px; text-align:center;">
+                <div class="session-badge" style="background:rgba(46,204,113,0.15);color:var(--success);">Block Completed</div>
+                <h1>Take a Short Break ☕</h1>
+                <p id="break-completed-text" class="text-secondary" style="margin-bottom:1.5rem;">Great job! You have finished the trials for this modality.</p>
+
+                <div class="card glass mt-2" style="text-align:center; padding:2rem;">
+                    <div class="card-header" style="border:none; margin:0; padding:0 0 1rem 0; color:var(--text-secondary); font-size:0.9rem; text-transform:uppercase; letter-spacing:1px;">Upcoming Modality</div>
+                    <div style="margin-bottom:1rem;">
+                        <span id="break-next-modality-badge" class="modality-label visual" style="font-size:1.2rem; padding:0.6rem 1.5rem;">👁 Visual Mode</span>
+                    </div>
+                    <p id="break-instructions-text" class="text-primary" style="font-size:1.05rem; line-height:1.6; max-width:500px; margin:auto;">
+                        Instruction guide...
+                    </p>
+                </div>
+
+                <button id="start-next-modality-btn" class="btn btn-primary mt-3" style="width:100%; padding:0.9rem; font-size:1.1rem; font-weight:600;">
+                    Ready for Next Modality →
+                </button>
+            </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
         <!--  SCREEN 4: PROFILE RESULTS                             -->
         <!-- ═══════════════════════════════════════════════════════ -->
         <section id="screen-profile-results" class="screen">
@@ -337,6 +362,11 @@
                         <div class="score-label">Haptic</div>
                         <div class="score-bar"><div class="score-bar-fill" id="profile-haptic-bar" style="width:0%;background:var(--modality-haptic);"></div></div>
                     </div>
+                    <div class="score-card visual-haptic" id="result-card-visual-haptic">
+                        <div class="score-value" id="profile-visual-haptic-score">—</div>
+                        <div class="score-label">Visual + Haptic</div>
+                        <div class="score-bar"><div class="score-bar-fill" id="profile-visual-haptic-bar" style="width:0%;background:var(--modality-visual-haptic);"></div></div>
+                    </div>
                 </div>
 
                 <!-- System Recommendation (Group B) -->
@@ -357,15 +387,18 @@
                     <p class="text-center text-secondary">
                         Based on your experience, which modality do you prefer for training?
                     </p>
-                    <div style="display:flex;gap:0.75rem;margin-top:1rem;">
-                        <button id="self-select-visual" class="btn btn-modality-visual" style="flex:1;">
+                    <div style="display:flex;gap:0.5rem;margin-top:1rem;flex-wrap:wrap;">
+                        <button id="self-select-visual" class="btn btn-modality-visual" style="flex:1;min-width:120px;">
                             👁 Visual
                         </button>
-                        <button id="self-select-audio" class="btn btn-modality-audio" style="flex:1;">
+                        <button id="self-select-audio" class="btn btn-modality-audio" style="flex:1;min-width:120px;">
                             🔊 Audio
                         </button>
-                        <button id="self-select-haptic" class="btn btn-modality-haptic" style="flex:1;">
+                        <button id="self-select-haptic" class="btn btn-modality-haptic" style="flex:1;min-width:120px;">
                             ✋ Haptic
+                        </button>
+                        <button id="self-select-visual-haptic" class="btn btn-modality-visual-haptic" style="flex:1;min-width:140px;">
+                            👁✋ Visual+Haptic
                         </button>
                     </div>
                 </div>
@@ -376,6 +409,12 @@
         <!--  SCREEN 5: TRAINING (Phase 2 — Single modality)        -->
         <!-- ═══════════════════════════════════════════════════════ -->
         <section id="screen-training" class="screen">
+            <!-- Adaptive Tutor Banner -->
+            <div id="adaptive-assist-banner" class="adaptive-banner hidden">
+                <span class="adaptive-icon">⚡</span>
+                <span id="adaptive-assist-text" class="adaptive-text">Adaptive Tutor Assist Engaged: Modality shifted to optimize learning!</span>
+            </div>
+
             <!-- Modality label -->
             <div class="text-center mt-2">
                 <span id="training-modality-label" class="modality-label visual">Training Mode</span>
@@ -668,6 +707,10 @@
                         <div class="score-card haptic">
                             <div class="score-value" id="final-haptic-score">—</div>
                             <div class="score-label">Haptic</div>
+                        </div>
+                        <div class="score-card visual-haptic">
+                            <div class="score-value" id="final-visual-haptic-score">—</div>
+                            <div class="score-label">Visual+Haptic</div>
                         </div>
                     </div>
                 </div>
