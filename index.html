@@ -842,9 +842,16 @@
                 <button id="close-dashboard-btn" class="btn btn-secondary" style="padding:0.4rem 1rem;">Close</button>
             </div>
 
-            <div class="dashboard-tabs">
-                <button id="tab-main-study" class="tab-btn active">Main Study</button>
-                <button id="tab-pilot-study" class="tab-btn">Pilot Study</button>
+            <div style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:1px solid var(--border); padding-bottom:1rem; margin-bottom:1rem;">
+                <div class="dashboard-tabs" style="margin-bottom:0;">
+                    <button id="tab-main-study" class="tab-btn active">Main Study</button>
+                    <button id="tab-pilot-study" class="tab-btn">Pilot Study</button>
+                </div>
+                <div class="sub-tabs" style="display:flex; gap: 0.5rem;">
+                    <button id="subtab-all" class="btn btn-primary" style="padding: 0.35rem 1rem; font-size: 0.8rem;">All Groups</button>
+                    <button id="subtab-group-a" class="btn btn-secondary" style="padding: 0.35rem 1rem; font-size: 0.8rem;">Group A</button>
+                    <button id="subtab-group-b" class="btn btn-secondary" style="padding: 0.35rem 1rem; font-size: 0.8rem;">Group B</button>
+                </div>
             </div>
             
             <div class="dashboard-layout" style="flex:1; display:flex; gap:1.5rem; overflow:hidden;">

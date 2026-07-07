@@ -1417,6 +1417,7 @@ class AppController {
         this.data.migratePilotData(); // Move old data to amlt_pilot_ keys
         this.data.renameMainStudyParticipants(); // Rename current IDs to P01, P02...
         this.dashboardTab = 'main'; // 'main' or 'pilot'
+        this.dashboardSubTab = 'all'; // 'all', 'self-selected', 'system-selected'
         this.ui = new UIRenderer();
 
         // Study state
@@ -1526,6 +1527,42 @@ class AppController {
                 this.dashboardTab = 'pilot';
                 tabPilot.classList.add('active');
                 tabMain.classList.remove('active');
+                this._renderDashboardList();
+            });
+        }
+
+        // Subtab switching (Group A/B)
+        const subtabAll = document.getElementById('subtab-all');
+        const subtabA = document.getElementById('subtab-group-a');
+        const subtabB = document.getElementById('subtab-group-b');
+        
+        const updateSubtabs = (activeBtn) => {
+            [subtabAll, subtabA, subtabB].forEach(btn => {
+                if (btn) {
+                    btn.classList.remove('btn-primary');
+                    btn.classList.add('btn-secondary');
+                }
+            });
+            if (activeBtn) {
+                activeBtn.classList.remove('btn-secondary');
+                activeBtn.classList.add('btn-primary');
+            }
+        };
+
+        if (subtabAll && subtabA && subtabB) {
+            subtabAll.addEventListener('click', () => {
+                this.dashboardSubTab = 'all';
+                updateSubtabs(subtabAll);
+                this._renderDashboardList();
+            });
+            subtabA.addEventListener('click', () => {
+                this.dashboardSubTab = 'self-selected'; // Group A
+                updateSubtabs(subtabA);
+                this._renderDashboardList();
+            });
+            subtabB.addEventListener('click', () => {
+                this.dashboardSubTab = 'system-selected'; // Group B
+                updateSubtabs(subtabB);
                 this._renderDashboardList();
             });
         }
@@ -2446,7 +2483,12 @@ class AppController {
         const listContainer = document.getElementById('dashboard-participant-list');
         if (!listContainer) return;
         
-        const participants = this.data.getAllParticipants(this.dashboardTab);
+        let participants = this.data.getAllParticipants(this.dashboardTab);
+        
+        if (this.dashboardSubTab !== 'all') {
+            participants = participants.filter(p => p.experimentalGroup === this.dashboardSubTab);
+        }
+
         listContainer.innerHTML = '';
         
         if (participants.length === 0) {
