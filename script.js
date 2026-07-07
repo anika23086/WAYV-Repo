@@ -537,6 +537,57 @@ class DataCollector {
     }
 
     /**
+     * Rename current main study participants to P01, P02, etc. sequentially.
+     */
+    renameMainStudyParticipants() {
+        if (localStorage.getItem('amlt_rename_migration_done') === 'true') return;
+
+        const keysToMigrate = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('amlt_data_')) {
+                keysToMigrate.push(key);
+            }
+        }
+
+        const participants = [];
+        keysToMigrate.forEach(key => {
+            try {
+                const data = JSON.parse(localStorage.getItem(key));
+                if (data && data.participantId) {
+                    participants.push({ key, data });
+                }
+            } catch(e) {}
+        });
+
+        // Sort by session date so the oldest participant gets P01
+        participants.sort((a, b) => new Date(a.data.session1Date) - new Date(b.data.session1Date));
+
+        let counter = 1;
+        participants.forEach(p => {
+            const newId = `P${String(counter).padStart(2, '0')}`;
+            p.data.participantId = newId;
+            
+            if (p.data.session1Trials) {
+                p.data.session1Trials.forEach(t => t.participantId = newId);
+            }
+            if (p.data.session2Trials) {
+                p.data.session2Trials.forEach(t => t.participantId = newId);
+            }
+
+            const newKey = `amlt_data_${newId}`;
+            localStorage.setItem(newKey, JSON.stringify(p.data));
+            
+            if (p.key !== newKey) {
+                localStorage.removeItem(p.key);
+            }
+            counter++;
+        });
+
+        localStorage.setItem('amlt_rename_migration_done', 'true');
+    }
+
+    /**
      * Update participant custom notes.
      */
     updateParticipantNotes(participantId, notes) {
@@ -1364,6 +1415,7 @@ class AppController {
         this.modality = new ModalityEngine(this.audio, this.serial);
         this.data = new DataCollector();
         this.data.migratePilotData(); // Move old data to amlt_pilot_ keys
+        this.data.renameMainStudyParticipants(); // Rename current IDs to P01, P02...
         this.dashboardTab = 'main'; // 'main' or 'pilot'
         this.ui = new UIRenderer();
 
