@@ -452,13 +452,12 @@ class DataCollector {
     /**
      * Initialize a new participant record.
      */
-    createParticipant(participantId, group, name, age, experience, dominantHand) {
+    createParticipant(participantId, group, experience, dominantHand, expectedModality) {
         this.participantData = {
             participantId,
-            name: name || '',
-            age: age || '',
             priorExperience: experience || 'none',
             dominantHand: dominantHand || 'right',
+            expectedModality: expectedModality || 'unsure',
             experimentalGroup: group,
             profilingOrder: [],
             session1Date: new Date().toISOString(),
@@ -492,13 +491,15 @@ class DataCollector {
     }
 
     /**
-     * Scan localStorage for all participant data records.
+     * Scan localStorage for participant records based on study type.
      */
-    getAllParticipants() {
+    getAllParticipants(studyType = 'main') {
         const list = [];
+        const targetPrefix = studyType === 'pilot' ? 'amlt_pilot_' : 'amlt_data_';
+        
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
-            if (key && key.startsWith('amlt_data_')) {
+            if (key && key.startsWith(targetPrefix)) {
                 try {
                     const data = JSON.parse(localStorage.getItem(key));
                     if (data && data.participantId) {
@@ -510,6 +511,29 @@ class DataCollector {
             }
         }
         return list;
+    }
+
+    /**
+     * Migrate pilot data (recorded before July 6, 2026) to amlt_pilot_ prefix.
+     */
+    migratePilotData() {
+        const cutoffDate = new Date('2026-07-06T00:00:00Z');
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('amlt_data_')) {
+                try {
+                    const data = JSON.parse(localStorage.getItem(key));
+                    if (data && data.session1Date) {
+                        if (new Date(data.session1Date) < cutoffDate) {
+                            const newKey = `amlt_pilot_${data.participantId}`;
+                            localStorage.setItem(newKey, JSON.stringify(data));
+                            localStorage.removeItem(key);
+                            i--; // adjust index since we removed a key
+                        }
+                    }
+                } catch (e) {}
+            }
+        }
     }
 
     /**
@@ -686,18 +710,32 @@ class DataCollector {
     /**
      * Export master trial-level CSV for ALL participants.
      */
-    exportMasterTrialCSV() {
-        const participants = this.getAllParticipants();
+    exportMasterTrialCSV(studyType = 'main') {
+        const participants = this.getAllParticipants(studyType);
         if (participants.length === 0) { alert('No participant data found.'); return; }
 
-        let csv = 'ParticipantID,Name,Age,Experience,DominantHand,Session,Group,Phase,Modality,Level,SequenceTarget,SequenceActual,' +
+        let csv = '';
+        if (studyType === 'pilot') {
+            csv = 'ParticipantID,Name,Age,Experience,DominantHand,Session,Group,Phase,Modality,Level,SequenceTarget,SequenceActual,' +
                   'OrderAccuracy,TimingAccuracy,CombinedScore,ResponseTimeMs,CompletionTimeMs,' +
                   'TargetTempo,Errors,Attempt\r\n';
+        } else {
+            csv = 'ParticipantID,ExpectedModality,Experience,DominantHand,Session,Group,Phase,Modality,Level,SequenceTarget,SequenceActual,' +
+                  'OrderAccuracy,TimingAccuracy,CombinedScore,ResponseTimeMs,CompletionTimeMs,' +
+                  'TargetTempo,Errors,Attempt\r\n';
+        }
 
         participants.forEach(p => {
             const allTrials = [...(p.session1Trials || []), ...(p.session2Trials || [])];
             allTrials.forEach(t => {
-                csv += `${p.participantId},"${p.name || ''}",${p.age || ''},${p.priorExperience || 'none'},${p.dominantHand || 'right'},${t.sessionNumber},${p.experimentalGroup},${t.phase},` +
+                let prefixCols = '';
+                if (studyType === 'pilot') {
+                    prefixCols = `${p.participantId},"${p.name || ''}",${p.age || ''},`;
+                } else {
+                    prefixCols = `${p.participantId},${p.expectedModality || 'unsure'},`;
+                }
+                
+                csv += `${prefixCols}${p.priorExperience || 'none'},${p.dominantHand || 'right'},${t.sessionNumber},${p.experimentalGroup},${t.phase},` +
                        `${t.modality},${t.level},"${t.targetSequence.join('-')}","${t.userSequence.join('-')}",` +
                        `${t.orderAccuracy.toFixed(3)},${t.timingAccuracy.toFixed(3)},${t.combinedScore.toFixed(3)},` +
                        `${t.responseTimeMs},${t.completionTimeMs},${t.targetInterNoteTiming},` +
@@ -705,20 +743,28 @@ class DataCollector {
             });
         });
 
-        this._downloadFile(csv, 'amlt_master_trials.csv', 'text/csv');
+        this._downloadFile(csv, `amlt_${studyType}_master_trials.csv`, 'text/csv');
     }
 
     /**
      * Export master summary CSV for ALL participants.
      */
-    exportMasterSummaryCSV() {
-        const participants = this.getAllParticipants();
+    exportMasterSummaryCSV(studyType = 'main') {
+        const participants = this.getAllParticipants(studyType);
         if (participants.length === 0) { alert('No participant data found.'); return; }
 
-        let csv = 'ParticipantID,Name,Age,Experience,DominantHand,Group,VisualScore,AudioScore,HapticScore,VisualHapticScore,' +
+        let csv = '';
+        if (studyType === 'pilot') {
+            csv = 'ParticipantID,Name,Age,Experience,DominantHand,Group,VisualScore,AudioScore,HapticScore,VisualHapticScore,' +
                   'SelfSelected,SystemSelected,ActiveModality,AdaptationTriggered,' +
                   'TrainingAvgOrderAcc,TrainingAvgTimingAcc,TrainingAvgCombined,' +
                   'RetentionOrderAcc,RetentionTimingAcc,RetentionCombined,DaysBetweenSessions,Notes\r\n';
+        } else {
+            csv = 'ParticipantID,ExpectedModality,Experience,DominantHand,Group,VisualScore,AudioScore,HapticScore,VisualHapticScore,' +
+                  'SelfSelected,SystemSelected,ActiveModality,AdaptationTriggered,' +
+                  'TrainingAvgOrderAcc,TrainingAvgTimingAcc,TrainingAvgCombined,' +
+                  'RetentionOrderAcc,RetentionTimingAcc,RetentionCombined,DaysBetweenSessions,Notes\r\n';
+        }
 
         participants.forEach(p => {
             const ms = p.modalityScores || {};
@@ -734,7 +780,14 @@ class DataCollector {
 
             const sanitizedNotes = (p.notes || '').replace(/"/g, '""').replace(/\r?\n/g, ' ');
 
-            csv += `${p.participantId},"${p.name || ''}",${p.age || ''},${p.priorExperience || 'none'},${p.dominantHand || 'right'},${p.experimentalGroup},` +
+            let prefixCols = '';
+            if (studyType === 'pilot') {
+                prefixCols = `${p.participantId},"${p.name || ''}",${p.age || ''},`;
+            } else {
+                prefixCols = `${p.participantId},${p.expectedModality || 'unsure'},`;
+            }
+
+            csv += `${prefixCols}${p.priorExperience || 'none'},${p.dominantHand || 'right'},${p.experimentalGroup},` +
                    `${ms.visual?.composite || 0},${ms.audio?.composite || 0},${ms.haptic?.composite || 0},${ms['visual-haptic']?.composite || 0},` +
                    `${p.selfSelectedModality || 'N/A'},${p.systemSelectedModality || 'N/A'},${p.activeModality || 'N/A'},${p.adaptationTriggered ? 'Yes' : 'No'},` +
                    `${avgTrainOrder.toFixed(3)},${avgTrainTiming.toFixed(3)},${avgTrainCombined.toFixed(3)},` +
@@ -742,7 +795,7 @@ class DataCollector {
                    `${p.retentionScores?.combined?.toFixed(3) || 0},${daysBetween},"${sanitizedNotes}"\r\n`;
         });
 
-        this._downloadFile(csv, 'amlt_master_summary.csv', 'text/csv');
+        this._downloadFile(csv, `amlt_${studyType}_master_summary.csv`, 'text/csv');
     }
 
     /**
@@ -1310,6 +1363,8 @@ class AppController {
         this.audio = new AudioEngine();
         this.modality = new ModalityEngine(this.audio, this.serial);
         this.data = new DataCollector();
+        this.data.migratePilotData(); // Move old data to amlt_pilot_ keys
+        this.dashboardTab = 'main'; // 'main' or 'pilot'
         this.ui = new UIRenderer();
 
         // Study state
@@ -1404,8 +1459,27 @@ class AppController {
             document.getElementById('researcher-dashboard').classList.add('hidden');
             this._populateReturningDropdown();
         });
-        document.getElementById('dashboard-export-trials-btn').addEventListener('click', () => this.data.exportMasterTrialCSV());
-        document.getElementById('dashboard-export-summary-btn').addEventListener('click', () => this.data.exportMasterSummaryCSV());
+        
+        // Tab switching
+        const tabMain = document.getElementById('tab-main-study');
+        const tabPilot = document.getElementById('tab-pilot-study');
+        if (tabMain && tabPilot) {
+            tabMain.addEventListener('click', () => {
+                this.dashboardTab = 'main';
+                tabMain.classList.add('active');
+                tabPilot.classList.remove('active');
+                this._renderDashboardList();
+            });
+            tabPilot.addEventListener('click', () => {
+                this.dashboardTab = 'pilot';
+                tabPilot.classList.add('active');
+                tabMain.classList.remove('active');
+                this._renderDashboardList();
+            });
+        }
+
+        document.getElementById('dashboard-export-trials-btn').addEventListener('click', () => this.data.exportMasterTrialCSV(this.dashboardTab));
+        document.getElementById('dashboard-export-summary-btn').addEventListener('click', () => this.data.exportMasterSummaryCSV(this.dashboardTab));
         
         document.getElementById('dashboard-import-btn').addEventListener('click', () => {
             document.getElementById('dashboard-file-input').click();
@@ -1422,11 +1496,8 @@ class AppController {
             });
         }
 
-        // Enable start buttons when name/age is entered + device connected
-        ['participant-name', 'participant-age'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.addEventListener('input', () => this._checkStartReady());
-        });
+        // Enable start buttons when ID is generated + device connected
+        this._checkStartReady();
         const retSelect = document.getElementById('returning-participant-select');
         if (retSelect) {
             retSelect.addEventListener('change', () => this._checkStartReady());
@@ -1568,28 +1639,23 @@ class AppController {
     }
 
     _updateGeneratedId() {
-        const name = document.getElementById('participant-name').value.trim();
-        const age = document.getElementById('participant-age').value.trim();
         const display = document.getElementById('generated-id-display');
+        let maxId = 0;
         
-        if (name && age) {
-            const initials = name.split(/\s+/).map(n => n[0]).join('').toUpperCase().slice(0, 3);
-            let index = 1;
-            const prefix = `amlt_data_${initials}${age}_`;
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (key && key.startsWith(prefix)) {
-                    index++;
-                }
+        // Count all main study participants
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('amlt_data_P')) {
+                const num = parseInt(key.replace('amlt_data_P', ''));
+                if (!isNaN(num) && num > maxId) maxId = num;
             }
-            const padIndex = String(index).padStart(3, '0');
-            const generatedId = `${initials}${age}_${padIndex}`;
-            if (display) display.textContent = `Generated ID: ${generatedId}`;
-            return generatedId;
-        } else {
-            if (display) display.textContent = `Generated ID: —`;
-            return '';
         }
+        
+        const nextId = maxId + 1;
+        const generatedId = `P${String(nextId).padStart(2, '0')}`;
+        
+        if (display) display.textContent = `${generatedId}`;
+        return generatedId;
     }
 
     _checkStartReady() {
@@ -1611,10 +1677,9 @@ class AppController {
 
     // ─── Session 1 Start ──────────────────────────────────────────
     async _startSession1() {
-        const name = document.getElementById('participant-name').value.trim();
-        const age = document.getElementById('participant-age').value.trim();
         const experience = document.getElementById('participant-experience').value;
         const hand = document.getElementById('participant-hand').value;
+        const expectedModality = document.getElementById('participant-expected-modality').value || 'unsure';
         this.participantId = this._updateGeneratedId();
         this.group = document.getElementById('group-select').value;
 
@@ -1631,7 +1696,7 @@ class AppController {
         this.consecutiveFailures = 0;
 
         // Create participant record
-        this.data.createParticipant(this.participantId, this.group, name, age, experience, hand);
+        this.data.createParticipant(this.participantId, this.group, experience, hand, expectedModality);
         this.data.participantData.profilingOrder = [...this.modalityOrder];
 
         // UI setup
@@ -2329,11 +2394,11 @@ class AppController {
         const listContainer = document.getElementById('dashboard-participant-list');
         if (!listContainer) return;
         
-        const participants = this.data.getAllParticipants();
+        const participants = this.data.getAllParticipants(this.dashboardTab);
         listContainer.innerHTML = '';
         
         if (participants.length === 0) {
-            listContainer.innerHTML = '<tr><td colspan="4" class="text-muted" style="text-align:center; padding:1.5rem;">No participant data found.</td></tr>';
+            listContainer.innerHTML = '<tr><td colspan="4" class="text-muted" style="text-align:center; padding:1.5rem;">No participant data found for this study group.</td></tr>';
             document.getElementById('dashboard-detail-view').innerHTML = '<div class="text-muted" style="text-align:center; margin-top:3rem;">Select a participant from the list to view detailed trial history and edit notes.</div>';
             return;
         }
@@ -2344,11 +2409,19 @@ class AppController {
             
             const nameCell = document.createElement('td');
             nameCell.style.padding = '0.5rem';
-            nameCell.innerHTML = `<strong>${p.name || 'N/A'}</strong><br><span class="text-muted" style="font-size:0.75rem;">${p.participantId}</span>`;
+            if (this.dashboardTab === 'pilot') {
+                nameCell.innerHTML = `<strong>${p.name || 'N/A'}</strong><br><span class="text-muted" style="font-size:0.75rem;">${p.participantId}</span>`;
+            } else {
+                nameCell.innerHTML = `<strong>${p.participantId}</strong>`;
+            }
             
-            const ageCell = document.createElement('td');
-            ageCell.style.padding = '0.5rem';
-            ageCell.textContent = p.age || 'N/A';
+            const infoCell = document.createElement('td');
+            infoCell.style.padding = '0.5rem';
+            if (this.dashboardTab === 'pilot') {
+                infoCell.textContent = p.age || 'N/A';
+            } else {
+                infoCell.innerHTML = `<span style="font-size:0.8rem;color:var(--text-secondary);">${p.expectedModality || 'unsure'}</span>`;
+            }
             
             const groupCell = document.createElement('td');
             groupCell.style.padding = '0.5rem';
@@ -2359,7 +2432,7 @@ class AppController {
             modCell.textContent = p.activeModality ? p.activeModality.charAt(0).toUpperCase() + p.activeModality.slice(1) : 'None';
             
             tr.appendChild(nameCell);
-            tr.appendChild(ageCell);
+            tr.appendChild(infoCell);
             tr.appendChild(groupCell);
             tr.appendChild(modCell);
             
@@ -2431,8 +2504,12 @@ class AppController {
                     <button class="btn btn-danger" id="dashboard-delete-p-btn" style="padding:0.2rem 0.6rem; font-size:0.75rem;">Delete Participant</button>
                 </div>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-top:0.5rem; color:var(--text-secondary);">
+                    ${this.dashboardTab === 'pilot' ? `
                     <div>Name: <span style="color:var(--text-primary); font-weight:500;">${p.name || 'N/A'}</span></div>
                     <div>Age: <span style="color:var(--text-primary); font-weight:500;">${p.age || 'N/A'}</span></div>
+                    ` : `
+                    <div>Expected Modality: <span style="color:var(--text-primary); font-weight:500;">${p.expectedModality || 'unsure'}</span></div>
+                    `}
                     <div>Dominant Hand: <span style="color:var(--text-primary); font-weight:500;">${p.dominantHand ? p.dominantHand.charAt(0).toUpperCase() + p.dominantHand.slice(1) : 'N/A'}</span></div>
                     <div>Experience: <span style="color:var(--text-primary); font-weight:500;">${p.priorExperience || 'none'}</span></div>
                     <div>Group: <span style="color:var(--text-primary); font-weight:500;">${p.experimentalGroup === 'self-selected' ? 'Group A (Self)' : 'Group B (System)'}</span></div>

@@ -50,14 +50,10 @@
                 <div class="card">
                     <div class="card-header">New Participant — Session 1</div>
 
-                    <div class="form-group">
-                        <label for="participant-name">Participant Name</label>
-                        <input type="text" id="participant-name" placeholder="e.g. Jane Doe">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="participant-age">Participant Age</label>
-                        <input type="number" id="participant-age" placeholder="e.g. 24" min="1" max="120">
+                    <!-- Removed Name and Age to maintain anonymity -->
+                    <div class="form-group" style="margin-bottom: 0.5rem;">
+                        <label>Participant ID</label>
+                        <div id="generated-id-display" style="font-size:1.2rem; font-weight:700; color:var(--primary); padding: 0.5rem 0;">P--</div>
                     </div>
 
                     <div class="form-group">
@@ -78,7 +74,17 @@
                         </select>
                     </div>
 
-                    <div id="generated-id-display" class="text-muted" style="font-size:0.8rem; font-weight:500; margin-bottom:1rem; text-align:left;">Generated ID: —</div>
+                    <div class="form-group">
+                        <label for="participant-expected-modality">Pre-Study Expected Best Modality</label>
+                        <select id="participant-expected-modality">
+                            <option value="">-- Select Expected Best Modality --</option>
+                            <option value="visual">Visual (Seeing)</option>
+                            <option value="audio">Audio (Hearing)</option>
+                            <option value="haptic">Haptic (Feeling/Vibration)</option>
+                            <option value="visual-haptic">Visual + Haptic (Seeing & Feeling)</option>
+                            <option value="unsure">Unsure</option>
+                        </select>
+                    </div>
 
                     <div class="form-group">
                         <label for="group-select">Experimental Group</label>
@@ -831,9 +837,14 @@
     <!-- Researcher Dashboard Modal -->
     <div id="researcher-dashboard" class="modal hidden">
         <div class="modal-content card" style="max-width:1100px; width:90%; height:85vh; display:flex; flex-direction:column; padding:1.5rem; background:var(--bg-secondary); border-color:var(--border);">
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:0.75rem; margin-bottom:1rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
                 <h2 style="border-bottom:none; margin:0; font-size:1.4rem;">⚙ Researcher Control Center</h2>
                 <button id="close-dashboard-btn" class="btn btn-secondary" style="padding:0.4rem 1rem;">Close</button>
+            </div>
+
+            <div class="dashboard-tabs">
+                <button id="tab-main-study" class="tab-btn active">Main Study</button>
+                <button id="tab-pilot-study" class="tab-btn">Pilot Study</button>
             </div>
             
             <div class="dashboard-layout" style="flex:1; display:flex; gap:1.5rem; overflow:hidden;">
@@ -844,8 +855,8 @@
                         <table style="width:100%; border-collapse:collapse; font-size:0.85rem; text-align:left;">
                             <thead>
                                 <tr style="border-bottom:2px solid var(--border); color:var(--text-secondary);">
-                                    <th style="padding:0.5rem; width:45%;">Name (ID)</th>
-                                    <th style="padding:0.5rem; width:15%;">Age</th>
+                                    <th style="padding:0.5rem; width:45%;">Participant</th>
+                                    <th style="padding:0.5rem; width:15%;">Info</th>
                                     <th style="padding:0.5rem; width:20%;">Group</th>
                                     <th style="padding:0.5rem; width:20%;">Modality</th>
                                 </tr>
