@@ -510,7 +510,12 @@ class DataCollector {
                 }
             }
         }
-        return list;
+        // Sort alphabetically/numerically by participant ID
+        return list.sort((a, b) => {
+            const idA = String(a.participantId || '');
+            const idB = String(b.participantId || '');
+            return idA.localeCompare(idB, undefined, {numeric: true, sensitivity: 'base'});
+        });
     }
 
     /**
