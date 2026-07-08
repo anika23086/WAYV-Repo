@@ -1508,24 +1508,6 @@ class AppController {
             this._populateReturningDropdown();
         });
         
-        // Tab switching
-        const tabMain = document.getElementById('tab-main-study');
-        const tabPilot = document.getElementById('tab-pilot-study');
-        if (tabMain && tabPilot) {
-            tabMain.addEventListener('click', () => {
-                this.dashboardTab = 'main';
-                tabMain.classList.add('active');
-                tabPilot.classList.remove('active');
-                this._renderDashboardList();
-            });
-            tabPilot.addEventListener('click', () => {
-                this.dashboardTab = 'pilot';
-                tabPilot.classList.add('active');
-                tabMain.classList.remove('active');
-                this._renderDashboardList();
-            });
-        }
-
         // Subtab switching (Group A/B)
         const subtabAll = document.getElementById('subtab-all');
         const subtabA = document.getElementById('subtab-group-a');
@@ -1543,6 +1525,28 @@ class AppController {
                 activeBtn.classList.add('btn-primary');
             }
         };
+
+        // Tab switching
+        const tabMain = document.getElementById('tab-main-study');
+        const tabPilot = document.getElementById('tab-pilot-study');
+        if (tabMain && tabPilot) {
+            tabMain.addEventListener('click', () => {
+                this.dashboardTab = 'main';
+                tabMain.classList.add('active');
+                tabPilot.classList.remove('active');
+                this.dashboardSubTab = 'all'; // Reset subtab
+                updateSubtabs(subtabAll);
+                this._renderDashboardList();
+            });
+            tabPilot.addEventListener('click', () => {
+                this.dashboardTab = 'pilot';
+                tabPilot.classList.add('active');
+                tabMain.classList.remove('active');
+                this.dashboardSubTab = 'all'; // Reset subtab
+                updateSubtabs(subtabAll);
+                this._renderDashboardList();
+            });
+        }
 
         if (subtabAll && subtabA && subtabB) {
             subtabAll.addEventListener('click', () => {
