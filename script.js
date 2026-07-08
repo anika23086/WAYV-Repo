@@ -1475,14 +1475,9 @@ class AppController {
         document.getElementById('replay-btn').addEventListener('click', () => this._replaySequence());
 
         // Profile results screen
-        document.getElementById('accept-system-btn').addEventListener('click', () => {
-            const bestMod = this.data.participantData.modalityScores.bestModality;
-            this._selectModality(null, bestMod);
+        document.getElementById('continue-training-btn').addEventListener('click', () => {
+            this._selectModality();
         });
-        document.getElementById('self-select-visual').addEventListener('click', () => this._selectModality('visual', null));
-        document.getElementById('self-select-audio').addEventListener('click', () => this._selectModality('audio', null));
-        document.getElementById('self-select-haptic').addEventListener('click', () => this._selectModality('haptic', null));
-        document.getElementById('self-select-visual-haptic').addEventListener('click', () => this._selectModality('visual-haptic', null));
         document.getElementById('start-next-modality-btn').addEventListener('click', () => this._startProfilingBlock());
 
         // Training screen
@@ -1971,11 +1966,16 @@ class AppController {
     }
 
     // ─── Modality Selection ───────────────────────────────────────
-    _selectModality(selfSelected, systemSelected) {
+    _selectModality() {
         const scores = this.data.participantData.modalityScores;
-        const active = selfSelected || systemSelected || scores.bestModality;
+        const expected = this.data.participantData.expectedModality;
+        const systemSelected = scores.bestModality;
+        
+        // Both groups start with their expected modality.
+        // If they were 'unsure', use the system selected best modality.
+        const active = (expected && expected !== 'unsure') ? expected : systemSelected;
 
-        this.data.setModalitySelection(selfSelected, systemSelected || scores.bestModality, active);
+        this.data.setModalitySelection(active, systemSelected, active);
         this.currentModality = active;
 
         this.ui.showToast(`Training modality set to: ${active.charAt(0).toUpperCase() + active.slice(1)}`);
@@ -2322,18 +2322,20 @@ class AppController {
     }
 
     _triggerAdaptiveModalityShift() {
-        let newMod = 'visual-haptic';
+        const scores = this.data.participantData?.modalityScores || {};
+        const systemSelected = scores.bestModality || 'visual-haptic';
+        
+        let newMod = systemSelected;
         let msg = '';
 
-        if (this.currentModality !== 'visual-haptic') {
-            newMod = 'visual-haptic';
-            msg = '⚡ Adaptive Assist Engaged: Upgraded to Visual+Haptic multi-sensory feedback to assist finger targeting!';
+        if (this.currentModality !== systemSelected) {
+            newMod = systemSelected;
+            msg = `⚡ Adaptive Assist Engaged: Shifted to your strongest modality (${newMod.toUpperCase()}) based on profiling!`;
         } else {
-            // Fall back to 2nd best profiling modality
-            const scores = this.data.participantData?.modalityScores || {};
+            // Already on their best modality, fall back to 2nd best
             const sortedMods = ['visual', 'audio', 'haptic', 'visual-haptic'].sort((a, b) => (scores[b]?.composite || 0) - (scores[a]?.composite || 0));
             newMod = sortedMods[1] || 'haptic';
-            msg = `⚡ Adaptive Assist Engaged: Shifted to ${newMod.toUpperCase()} feedback to reduce sensory overload!`;
+            msg = `⚡ Adaptive Assist Engaged: Shifted to your alternate modality (${newMod.toUpperCase()})!`;
         }
 
         this.currentModality = newMod;
