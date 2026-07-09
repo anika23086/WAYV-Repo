@@ -2114,6 +2114,7 @@ class AppController {
             visualScore: p.modalityScores.visual?.composite || 0,
             audioScore: p.modalityScores.audio?.composite || 0,
             hapticScore: p.modalityScores.haptic?.composite || 0,
+            visualHapticScore: p.modalityScores['visual-haptic']?.composite || 0,
             trainingOrder: `${(trainOrder * 100).toFixed(0)}%`,
             trainingTiming: `${(trainTiming * 100).toFixed(0)}%`,
             trainingCombined: `${(trainCombined * 100).toFixed(0)}%`,
