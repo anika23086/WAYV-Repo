@@ -50,7 +50,16 @@
                 <div class="card">
                     <div class="card-header">New Participant — Session 1</div>
 
-                    <!-- Removed Name and Age to maintain anonymity -->
+                    <!-- Instrument Selector (1st Panel / Dropdown) -->
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label for="instrument-select">Select Instrument</label>
+                        <select id="instrument-select" style="font-weight:600; color:var(--text-primary); border:1px solid var(--primary);">
+                            <option value="piano">Instrument 1 (Piano)</option>
+                            <option value="recorder">Instrument 2 (Recorder)</option>
+                        </select>
+                    </div>
+
+                    <!-- Participant ID -->
                     <div class="form-group" style="margin-bottom: 0.5rem;">
                         <label>Participant ID</label>
                         <div id="generated-id-display" style="font-size:1.2rem; font-weight:700; color:var(--primary); padding: 0.5rem 0;">P--</div>
@@ -70,6 +79,16 @@
                         <select id="participant-experience">
                             <option value="none">None / Minimal (No formal training)</option>
                             <option value="casual">Casual / Hobbyist (Under 2 years, rhythm games)</option>
+                            <option value="advanced">Trained / Advanced (2+ years regular practice)</option>
+                        </select>
+                    </div>
+
+                    <!-- Recorder-Specific Wind Experience Field -->
+                    <div class="form-group" id="wind-experience-group" style="display:none;">
+                        <label for="participant-wind-experience">Prior Wind-Instrument Experience</label>
+                        <select id="participant-wind-experience">
+                            <option value="none">None / Minimal (No wind instrument background)</option>
+                            <option value="casual">Casual / Hobbyist (Flute, recorder, woodwinds under 2 years)</option>
                             <option value="advanced">Trained / Advanced (2+ years regular practice)</option>
                         </select>
                     </div>
@@ -100,25 +119,27 @@
                         </button>
                     </div>
 
-                    <!-- Glove Finger Mapping Clarification -->
+                    <!-- Glove Finger Mapping Clarification (Dynamic based on Instrument) -->
                     <div class="card mt-2 mb-3" style="background:var(--bg-tertiary); padding:1rem; border-color:var(--border);">
-                        <h4 style="font-size:0.85rem; font-weight:600; color:var(--text-primary); margin-bottom:0.5rem; text-align:left;">✋ Glove Finger Mapping Reference</h4>
-                        <ul style="font-size:0.8rem; color:var(--text-secondary); text-align:left; padding-left:1.2rem; margin:0; line-height:1.4;">
-                            <li><strong>Right Glove (Index, Middle, Ring)</strong>:
-                                <ul style="padding-left:1rem; margin-top:2px;">
-                                    <li>Finger 1 (Note C): Ring Finger</li>
-                                    <li>Finger 2 (Note D): Middle Finger</li>
-                                    <li>Finger 3 (Note E): Index Finger</li>
-                                </ul>
-                            </li>
-                            <li style="margin-top:6px;"><strong>Left Glove (Index, Middle, Ring)</strong>:
-                                <ul style="padding-left:1rem; margin-top:2px;">
-                                    <li>Finger 4 (Note F): Index Finger</li>
-                                    <li>Finger 5 (Note G): Middle Finger</li>
-                                    <li>Finger 6 (Note A): Ring Finger</li>
-                                </ul>
-                            </li>
-                        </ul>
+                        <h4 style="font-size:0.95rem; font-weight:600; color:var(--text-primary); margin-bottom:0.75rem; text-align:left;" id="glove-mapping-title">✋ Glove Finger Mapping Reference</h4>
+                        <div id="glove-mapping-content">
+                            <ul style="margin:0; padding-left:1.2rem; line-height:1.7; font-size:0.9rem; color:var(--text-secondary); text-align:left;">
+                                <li><strong style="color:var(--text-primary);">Right Glove (Index, Middle, Ring):</strong>
+                                    <ul style="margin:0; padding-left:1.2rem;">
+                                        <li>Finger 1 (Note C): Ring Finger</li>
+                                        <li>Finger 2 (Note D): Middle Finger</li>
+                                        <li>Finger 3 (Note E): Index Finger</li>
+                                    </ul>
+                                </li>
+                                <li class="mt-2"><strong style="color:var(--text-primary);">Left Glove (Index, Middle, Ring):</strong>
+                                    <ul style="margin:0; padding-left:1.2rem;">
+                                        <li>Finger 4 (Note F): Index Finger</li>
+                                        <li>Finger 5 (Note G): Middle Finger</li>
+                                        <li>Finger 6 (Note A): Ring Finger</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
                     </div>
 
                     <button id="start-study-btn" class="btn btn-primary" style="width:100%" disabled>
@@ -162,23 +183,25 @@
 
                     <!-- Glove Finger Mapping Clarification -->
                     <div class="card mt-2 mb-3" style="background:var(--bg-tertiary); padding:1rem; border-color:var(--border);">
-                        <h4 style="font-size:0.85rem; font-weight:600; color:var(--text-primary); margin-bottom:0.5rem; text-align:left;">✋ Glove Finger Mapping Reference</h4>
-                        <ul style="font-size:0.8rem; color:var(--text-secondary); text-align:left; padding-left:1.2rem; margin:0; line-height:1.4;">
-                            <li><strong>Right Glove (Index, Middle, Ring)</strong>:
-                                <ul style="padding-left:1rem; margin-top:2px;">
-                                    <li>Finger 1 (Note C): Ring Finger</li>
-                                    <li>Finger 2 (Note D): Middle Finger</li>
-                                    <li>Finger 3 (Note E): Index Finger</li>
-                                </ul>
-                            </li>
-                            <li style="margin-top:6px;"><strong>Left Glove (Index, Middle, Ring)</strong>:
-                                <ul style="padding-left:1rem; margin-top:2px;">
-                                    <li>Finger 4 (Note F): Index Finger</li>
-                                    <li>Finger 5 (Note G): Middle Finger</li>
-                                    <li>Finger 6 (Note A): Ring Finger</li>
-                                </ul>
-                            </li>
-                        </ul>
+                        <h4 style="font-size:0.95rem; font-weight:600; color:var(--text-primary); margin-bottom:0.75rem; text-align:left;" id="returning-glove-mapping-title">✋ Glove Finger Mapping Reference</h4>
+                        <div id="returning-glove-mapping-content">
+                            <ul style="margin:0; padding-left:1.2rem; line-height:1.7; font-size:0.9rem; color:var(--text-secondary); text-align:left;">
+                                <li><strong style="color:var(--text-primary);">Right Glove (Index, Middle, Ring):</strong>
+                                    <ul style="margin:0; padding-left:1.2rem;">
+                                        <li>Finger 1 (Note C): Ring Finger</li>
+                                        <li>Finger 2 (Note D): Middle Finger</li>
+                                        <li>Finger 3 (Note E): Index Finger</li>
+                                    </ul>
+                                </li>
+                                <li class="mt-2"><strong style="color:var(--text-primary);">Left Glove (Index, Middle, Ring):</strong>
+                                    <ul style="margin:0; padding-left:1.2rem;">
+                                        <li>Finger 4 (Note F): Index Finger</li>
+                                        <li>Finger 5 (Note G): Middle Finger</li>
+                                        <li>Finger 6 (Note A): Ring Finger</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
                     </div>
 
                     <div class="form-group">
@@ -232,6 +255,19 @@
                 <!-- Finger Visualization -->
                 <div class="card">
                     <div class="card-header">Your Input</div>
+                    
+                    <!-- Live Hand Shape & Hold Progress Banner (Recorder Mode) -->
+                    <div id="profiling-recorder-live-preview" class="recorder-live-preview hidden">
+                        <div class="live-preview-row">
+                            <span class="live-label">Hand Shape:</span>
+                            <span id="profiling-live-note-name" class="live-note-pill">—</span>
+                            <span id="profiling-live-fingers-dots" class="live-dots-pill">[○○○ | ○○○]</span>
+                        </div>
+                        <div class="hold-progress-track">
+                            <div id="profiling-hold-progress-bar" class="hold-progress-fill" style="width:0%;"></div>
+                        </div>
+                    </div>
+
                     <div id="finger-viz" class="finger-viz">
                         <div class="finger-indicator" id="finger-1">
                             <span class="finger-num">1</span>
@@ -266,6 +302,46 @@
                     </div>
                     <div id="user-sequence-display" class="text-center text-muted mt-1" style="font-size:0.9rem;">
                         <!-- Shows what the user has entered so far, e.g. "C → D → ?" -->
+                    </div>
+
+                    <!-- Recorder Fingering Quick Reference Guide (shown only in Recorder mode) -->
+                    <div class="recorder-fingering-guide hidden mt-3" style="background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:6px; padding:0.6rem 0.8rem; font-size:0.78rem;">
+                        <div style="font-weight:600; color:var(--text-secondary); margin-bottom:0.4rem; display:flex; justify-content:space-between; align-items:center;">
+                            <span>🎼 Recorder Fingering Guide (Curled = Covered)</span>
+                            <span style="font-size:0.68rem; color:var(--text-muted);">Left [L1·L2·L3] &nbsp;|&nbsp; Right [R1·R2·R3]</span>
+                        </div>
+                        <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:0.35rem; text-align:center;">
+                            <div style="background:var(--bg-secondary); padding:0.35rem 0.2rem; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+                                <strong style="color:var(--primary); display:block; font-size:0.85rem;">C</strong>
+                                <span style="letter-spacing:1px; font-size:0.7rem; color:var(--text-primary);">●●●&nbsp;●●●</span>
+                                <span style="font-size:0.65rem; color:var(--text-muted); display:block; margin-top:2px;">All 6</span>
+                            </div>
+                            <div style="background:var(--bg-secondary); padding:0.35rem 0.2rem; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+                                <strong style="color:var(--primary); display:block; font-size:0.85rem;">D</strong>
+                                <span style="letter-spacing:1px; font-size:0.7rem; color:var(--text-primary);">●●●&nbsp;●●○</span>
+                                <span style="font-size:0.65rem; color:var(--text-muted); display:block; margin-top:2px;">R3 open</span>
+                            </div>
+                            <div style="background:var(--bg-secondary); padding:0.35rem 0.2rem; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+                                <strong style="color:var(--primary); display:block; font-size:0.85rem;">E</strong>
+                                <span style="letter-spacing:1px; font-size:0.7rem; color:var(--text-primary);">●●●&nbsp;●○○</span>
+                                <span style="font-size:0.65rem; color:var(--text-muted); display:block; margin-top:2px;">R2,R3 open</span>
+                            </div>
+                            <div style="background:var(--bg-secondary); padding:0.35rem 0.2rem; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+                                <strong style="color:var(--primary); display:block; font-size:0.85rem;">F</strong>
+                                <span style="letter-spacing:1px; font-size:0.7rem; color:var(--text-primary);">●●●&nbsp;○○○</span>
+                                <span style="font-size:0.65rem; color:var(--text-muted); display:block; margin-top:2px;">Left Hand</span>
+                            </div>
+                            <div style="background:var(--bg-secondary); padding:0.35rem 0.2rem; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+                                <strong style="color:var(--primary); display:block; font-size:0.85rem;">G</strong>
+                                <span style="letter-spacing:1px; font-size:0.7rem; color:var(--text-primary);">●●○&nbsp;○○○</span>
+                                <span style="font-size:0.65rem; color:var(--text-muted); display:block; margin-top:2px;">L1, L2</span>
+                            </div>
+                            <div style="background:var(--bg-secondary); padding:0.35rem 0.2rem; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+                                <strong style="color:var(--primary); display:block; font-size:0.85rem;">A</strong>
+                                <span style="letter-spacing:1px; font-size:0.7rem; color:var(--text-primary);">●○○&nbsp;○○○</span>
+                                <span style="font-size:0.65rem; color:var(--text-muted); display:block; margin-top:2px;">L1 only</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -424,6 +500,19 @@
                 <!-- Finger Viz (reuses same structure, different IDs for training) -->
                 <div class="card">
                     <div class="card-header">Your Input</div>
+
+                    <!-- Live Hand Shape & Hold Progress Banner (Recorder Mode) -->
+                    <div id="training-recorder-live-preview" class="recorder-live-preview hidden">
+                        <div class="live-preview-row">
+                            <span class="live-label">Hand Shape:</span>
+                            <span id="training-live-note-name" class="live-note-pill">—</span>
+                            <span id="training-live-fingers-dots" class="live-dots-pill">[○○○ | ○○○]</span>
+                        </div>
+                        <div class="hold-progress-track">
+                            <div id="training-hold-progress-bar" class="hold-progress-fill" style="width:0%;"></div>
+                        </div>
+                    </div>
+
                     <div id="training-finger-viz" class="finger-viz">
                         <div class="finger-indicator" id="training-finger-1">
                             <span class="finger-num">1</span>
@@ -457,6 +546,46 @@
                         </div>
                     </div>
                     <div id="training-user-sequence" class="text-center text-muted mt-1" style="font-size:0.9rem;"></div>
+
+                    <!-- Recorder Fingering Quick Reference Guide (shown only in Recorder mode) -->
+                    <div class="recorder-fingering-guide hidden mt-3" style="background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:6px; padding:0.6rem 0.8rem; font-size:0.78rem;">
+                        <div style="font-weight:600; color:var(--text-secondary); margin-bottom:0.4rem; display:flex; justify-content:space-between; align-items:center;">
+                            <span>🎼 Recorder Fingering Guide (Curled = Covered)</span>
+                            <span style="font-size:0.68rem; color:var(--text-muted);">Left [L1·L2·L3] &nbsp;|&nbsp; Right [R1·R2·R3]</span>
+                        </div>
+                        <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:0.35rem; text-align:center;">
+                            <div style="background:var(--bg-secondary); padding:0.35rem 0.2rem; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+                                <strong style="color:var(--primary); display:block; font-size:0.85rem;">C</strong>
+                                <span style="letter-spacing:1px; font-size:0.7rem; color:var(--text-primary);">●●●&nbsp;●●●</span>
+                                <span style="font-size:0.65rem; color:var(--text-muted); display:block; margin-top:2px;">All 6</span>
+                            </div>
+                            <div style="background:var(--bg-secondary); padding:0.35rem 0.2rem; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+                                <strong style="color:var(--primary); display:block; font-size:0.85rem;">D</strong>
+                                <span style="letter-spacing:1px; font-size:0.7rem; color:var(--text-primary);">●●●&nbsp;●●○</span>
+                                <span style="font-size:0.65rem; color:var(--text-muted); display:block; margin-top:2px;">R3 open</span>
+                            </div>
+                            <div style="background:var(--bg-secondary); padding:0.35rem 0.2rem; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+                                <strong style="color:var(--primary); display:block; font-size:0.85rem;">E</strong>
+                                <span style="letter-spacing:1px; font-size:0.7rem; color:var(--text-primary);">●●●&nbsp;●○○</span>
+                                <span style="font-size:0.65rem; color:var(--text-muted); display:block; margin-top:2px;">R2,R3 open</span>
+                            </div>
+                            <div style="background:var(--bg-secondary); padding:0.35rem 0.2rem; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+                                <strong style="color:var(--primary); display:block; font-size:0.85rem;">F</strong>
+                                <span style="letter-spacing:1px; font-size:0.7rem; color:var(--text-primary);">●●●&nbsp;○○○</span>
+                                <span style="font-size:0.65rem; color:var(--text-muted); display:block; margin-top:2px;">Left Hand</span>
+                            </div>
+                            <div style="background:var(--bg-secondary); padding:0.35rem 0.2rem; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+                                <strong style="color:var(--primary); display:block; font-size:0.85rem;">G</strong>
+                                <span style="letter-spacing:1px; font-size:0.7rem; color:var(--text-primary);">●●○&nbsp;○○○</span>
+                                <span style="font-size:0.65rem; color:var(--text-muted); display:block; margin-top:2px;">L1, L2</span>
+                            </div>
+                            <div style="background:var(--bg-secondary); padding:0.35rem 0.2rem; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+                                <strong style="color:var(--primary); display:block; font-size:0.85rem;">A</strong>
+                                <span style="letter-spacing:1px; font-size:0.7rem; color:var(--text-primary);">●○○&nbsp;○○○</span>
+                                <span style="font-size:0.65rem; color:var(--text-muted); display:block; margin-top:2px;">L1 only</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Trial Info -->
@@ -596,6 +725,19 @@
                 <!-- Finger Viz -->
                 <div class="card">
                     <div class="card-header">Your Input</div>
+
+                    <!-- Live Hand Shape & Hold Progress Banner (Recorder Mode) -->
+                    <div id="retention-recorder-live-preview" class="recorder-live-preview hidden">
+                        <div class="live-preview-row">
+                            <span class="live-label">Hand Shape:</span>
+                            <span id="retention-live-note-name" class="live-note-pill">—</span>
+                            <span id="retention-live-fingers-dots" class="live-dots-pill">[○○○ | ○○○]</span>
+                        </div>
+                        <div class="hold-progress-track">
+                            <div id="retention-hold-progress-bar" class="hold-progress-fill" style="width:0%;"></div>
+                        </div>
+                    </div>
+
                     <div id="retention-finger-viz" class="finger-viz">
                         <div class="finger-indicator" id="retention-finger-1">
                             <span class="finger-num">1</span>
@@ -629,6 +771,46 @@
                         </div>
                     </div>
                     <div id="retention-user-sequence" class="text-center text-muted mt-1" style="font-size:0.9rem;"></div>
+
+                    <!-- Recorder Fingering Quick Reference Guide (shown only in Recorder mode) -->
+                    <div class="recorder-fingering-guide hidden mt-3" style="background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:6px; padding:0.6rem 0.8rem; font-size:0.78rem;">
+                        <div style="font-weight:600; color:var(--text-secondary); margin-bottom:0.4rem; display:flex; justify-content:space-between; align-items:center;">
+                            <span>🎼 Recorder Fingering Guide (Curled = Covered)</span>
+                            <span style="font-size:0.68rem; color:var(--text-muted);">Left [L1·L2·L3] &nbsp;|&nbsp; Right [R1·R2·R3]</span>
+                        </div>
+                        <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:0.35rem; text-align:center;">
+                            <div style="background:var(--bg-secondary); padding:0.35rem 0.2rem; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+                                <strong style="color:var(--primary); display:block; font-size:0.85rem;">C</strong>
+                                <span style="letter-spacing:1px; font-size:0.7rem; color:var(--text-primary);">●●●&nbsp;●●●</span>
+                                <span style="font-size:0.65rem; color:var(--text-muted); display:block; margin-top:2px;">All 6</span>
+                            </div>
+                            <div style="background:var(--bg-secondary); padding:0.35rem 0.2rem; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+                                <strong style="color:var(--primary); display:block; font-size:0.85rem;">D</strong>
+                                <span style="letter-spacing:1px; font-size:0.7rem; color:var(--text-primary);">●●●&nbsp;●●○</span>
+                                <span style="font-size:0.65rem; color:var(--text-muted); display:block; margin-top:2px;">R3 open</span>
+                            </div>
+                            <div style="background:var(--bg-secondary); padding:0.35rem 0.2rem; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+                                <strong style="color:var(--primary); display:block; font-size:0.85rem;">E</strong>
+                                <span style="letter-spacing:1px; font-size:0.7rem; color:var(--text-primary);">●●●&nbsp;●○○</span>
+                                <span style="font-size:0.65rem; color:var(--text-muted); display:block; margin-top:2px;">R2,R3 open</span>
+                            </div>
+                            <div style="background:var(--bg-secondary); padding:0.35rem 0.2rem; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+                                <strong style="color:var(--primary); display:block; font-size:0.85rem;">F</strong>
+                                <span style="letter-spacing:1px; font-size:0.7rem; color:var(--text-primary);">●●●&nbsp;○○○</span>
+                                <span style="font-size:0.65rem; color:var(--text-muted); display:block; margin-top:2px;">Left Hand</span>
+                            </div>
+                            <div style="background:var(--bg-secondary); padding:0.35rem 0.2rem; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+                                <strong style="color:var(--primary); display:block; font-size:0.85rem;">G</strong>
+                                <span style="letter-spacing:1px; font-size:0.7rem; color:var(--text-primary);">●●○&nbsp;○○○</span>
+                                <span style="font-size:0.65rem; color:var(--text-muted); display:block; margin-top:2px;">L1, L2</span>
+                            </div>
+                            <div style="background:var(--bg-secondary); padding:0.35rem 0.2rem; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+                                <strong style="color:var(--primary); display:block; font-size:0.85rem;">A</strong>
+                                <span style="letter-spacing:1px; font-size:0.7rem; color:var(--text-primary);">●○○&nbsp;○○○</span>
+                                <span style="font-size:0.65rem; color:var(--text-muted); display:block; margin-top:2px;">L1 only</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Retention Trial Info -->
@@ -772,11 +954,17 @@
                 <span id="debug-console-arrow">▲</span>
             </h3>
             <div id="debug-console-content" style="margin-top:0.75rem;">
-                <div id="debug-serial-log" style="font-family:monospace; font-size:0.75rem; color:var(--text-secondary); background:rgba(0,0,0,0.3); padding:0.6rem; border-radius:4px; max-height:100px; overflow-y:auto; text-align:left; line-height:1.4;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                    <span style="font-size:0.75rem; color:var(--text-muted);">Raw Serial Stream</span>
+                    <button id="read-adc-btn" class="btn btn-secondary" style="font-size:0.72rem; padding:0.2rem 0.6rem;">
+                        📊 Read ADC Sensors (D)
+                    </button>
+                </div>
+                <div id="debug-serial-log" style="font-family:monospace; font-size:0.75rem; color:var(--text-secondary); background:rgba(0,0,0,0.3); padding:0.6rem; border-radius:4px; max-height:110px; overflow-y:auto; text-align:left; line-height:1.4;">
                     [Console initialized. Awaiting Serial data...]
                 </div>
                 <p style="font-size:0.72rem; color:var(--text-muted); margin-top:0.6rem; margin-bottom:0; text-align:left; line-height:1.4;">
-                    💡 <em>Tip: If you bend fingers and see letters like 'a', 'b', 'c' instead of 'F1', 'F2', you need to upload the new <strong>arduino.ino</strong> firmware to the Arduino board. If you see nothing, verify connection status.</em>
+                    💡 <em>Tip: Click "Read ADC Sensors" to test live flex sensor voltage/ADC readings. If R1 doesn't reach the bend threshold (640), re-upload the updated <strong>arduino.ino</strong> firmware.</em>
                 </p>
             </div>
         </div>
@@ -820,8 +1008,9 @@
             </div>
 
             <div style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:1px solid var(--border); padding-bottom:1rem; margin-bottom:1rem;">
-                <div class="dashboard-tabs" style="margin-bottom:0;">
-                    <button id="tab-main-study" class="tab-btn active">Main Study</button>
+                <div class="dashboard-tabs" style="margin-bottom:0; display:flex; gap:0.5rem;">
+                    <button id="tab-main-study" class="tab-btn active">Active Study (New)</button>
+                    <button id="tab-archive-study" class="tab-btn">Archived Data (Previous)</button>
                     <button id="tab-pilot-study" class="tab-btn">Pilot Study</button>
                 </div>
                 <div class="sub-tabs" style="display:flex; gap: 0.5rem;">

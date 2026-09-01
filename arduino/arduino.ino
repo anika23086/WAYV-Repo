@@ -39,8 +39,8 @@
 #define ledd   13 // Status LED
 
 // ── Thresholds & Timing ─────────────────────────────────────
-#define BEND_THRESHOLD    700   // ADC value above which = finger bent
-#define RELEASE_THRESHOLD 600   // ADC value below which = finger released
+#define BEND_THRESHOLD    640   // ADC value above which = finger bent (lowered from 700 for high sensitivity)
+#define RELEASE_THRESHOLD 540   // ADC value below which = finger released
 #define DEBOUNCE_MS        50   // Ignore state changes within this window
 #define DEFAULT_VIBE_MS   300   // Default single-vibration duration
 #define LOOP_DELAY_MS      10   // Main loop iteration pause
@@ -110,9 +110,71 @@ void processSerialCommand() {
     }
   }
 
+  // ── P command: parallel simultaneous pulse ───────────────
+  // Format: P<f1>,<f2>,...:<ms> or P<f1>,<f2>,...
+  // Example: P4,5,6:300  → turns pins 4, 5, 6 HIGH together,
+  //          delays 300ms, turns all LOW together.
+  else if (type == 'P') {
+    int colonIdx = cmd.indexOf(':');
+    String fingerList;
+    int duration = DEFAULT_VIBE_MS;
+
+    if (colonIdx > 0) {
+      fingerList = cmd.substring(1, colonIdx);
+      duration   = cmd.substring(colonIdx + 1).toInt();
+    } else {
+      fingerList = cmd.substring(1);
+    }
+
+    if (duration <= 0) duration = DEFAULT_VIBE_MS;
+
+    // Collect all valid target pins
+    int targetPins[6];
+    int targetCount = 0;
+
+    int startPos = 0;
+    while (startPos <= (int)fingerList.length()) {
+      int commaIdx = fingerList.indexOf(',', startPos);
+      String token;
+
+      if (commaIdx < 0) {
+        token = fingerList.substring(startPos);
+        startPos = fingerList.length() + 1;
+      } else {
+        token = fingerList.substring(startPos, commaIdx);
+        startPos = commaIdx + 1;
+      }
+
+      int fingerNum = token.toInt();
+      if (fingerNum >= 1 && fingerNum <= 6) {
+        targetPins[targetCount++] = motorPins[fingerNum - 1];
+      }
+    }
+
+    // Fire all target motors HIGH simultaneously
+    for (int i = 0; i < targetCount; i++) {
+      digitalWrite(targetPins[i], HIGH);
+    }
+    delay(duration);
+    // Turn all target motors LOW simultaneously
+    for (int i = 0; i < targetCount; i++) {
+      digitalWrite(targetPins[i], LOW);
+    }
+  }
+
   // ── X command: kill all motors ──────────────────────────
   else if (type == 'X') {
     stopAllMotors();
+  }
+
+  // ── D command: Dump live ADC readings ────────────────────
+  else if (type == 'D') {
+    Serial.print("ADC: F1(R3)="); Serial.print(analogRead(adc1));
+    Serial.print(" F2(R2)="); Serial.print(analogRead(adc2));
+    Serial.print(" F3(R1)="); Serial.print(analogRead(adc3));
+    Serial.print(" F4(L1)="); Serial.print(analogRead(adc4));
+    Serial.print(" F5(L2)="); Serial.print(analogRead(adc5));
+    Serial.print(" F6(L3)="); Serial.println(analogRead(adc6));
   }
 
   // ── S command: haptic sequence ──────────────────────────

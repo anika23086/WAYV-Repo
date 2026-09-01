@@ -4,16 +4,22 @@
 //  motor skill acquisition and adaptive tutoring.
 // ═══════════════════════════════════════════════════════════════════════
 
-// ─── CONSTANTS ───────────────────────────────────────────────────────
-const FINGER_NOTES = { 1: 'C', 2: 'D', 3: 'E', 4: 'F', 5: 'G', 6: 'A' };
-const NOTE_FREQUENCIES = { 1: 261.63, 2: 293.66, 3: 329.63, 4: 349.23, 5: 392.00, 6: 440.00 };
+// ─── CONSTANTS & INSTRUMENT CONFIGURATIONS ─────────────────────────
 const TARGET_NOTE_DURATION = 400; // ms — how long each note plays during presentation
 const TARGET_NOTE_GAP = 400;      // ms — silence between notes during presentation
 const TARGET_INTER_NOTE = TARGET_NOTE_DURATION + TARGET_NOTE_GAP; // 800ms total per note
 const INPUT_TIMEOUT = 10000;      // ms — max wait for user input before auto-evaluate
 const MAX_ATTEMPTS = 3;           // max attempts per sequence
 
-const SEQUENCES = {
+// Configurable stable hold duration for recorder note triggering (ms)
+const RECORDER_STABLE_HOLD_MS = 250;
+const RECORDER_SYNCHRONY_WINDOW_MS = 150;
+
+// Piano (Instrument 1) Specifications
+const PIANO_FINGER_NOTES = { 1: 'C', 2: 'D', 3: 'E', 4: 'F', 5: 'G', 6: 'A' };
+const PIANO_NOTE_FREQUENCIES = { 1: 261.63, 2: 293.66, 3: 329.63, 4: 349.23, 5: 392.00, 6: 440.00 };
+
+const PIANO_SEQUENCES = {
     level1: [
         [1, 2, 3],       // C → D → E
         [1, 4, 6],       // C → F → A
@@ -28,20 +34,74 @@ const SEQUENCES = {
         [1, 2, 3, 4, 6, 4],  // C → D → E → F → A → F
         [6, 4, 3, 2, 1, 3],  // A → F → E → D → C → E
         [1, 3, 6, 4, 2, 1],  // C → E → A → F → D → C
-    ]
+    ],
+    trainingTarget: [1, 3, 2, 6, 4] // C → E → D → A → F
 };
 
-// Profiling plan: 3 sequences per modality (L1, L1, L2)
+// Recorder (Instrument 2) Specifications
+// Hardware Mapping (6 flex sensors):
+// Hand   Finger         Hole Position           Sensor/Hardware ID
+// Left   Index (L1)     Hole 1 (top)            4
+// Left   Middle (L2)    Hole 2                  5
+// Left   Ring (L3)      Hole 3                  6
+// Right  Index (R1)     Hole 4                  3
+// Right  Middle (R2)    Hole 5                  2
+// Right  Ring (R3)      Hole 6 (bottom)         1
+const RECORDER_NOTE_FREQUENCIES = {
+    'C': 261.63,
+    'D': 293.66,
+    'E': 329.63,
+    'F': 349.23,
+    'G': 392.00,
+    'A': 440.00
+};
+
+// Recorder 6-hole diatonic fingering vectors: [L1, L2, L3, R1, R2, R3] (1 = curled/covered, 0 = extended/open)
+const RECORDER_NOTE_FINGERS = {
+    'C': [1, 1, 1, 1, 1, 1], // all 6 curled
+    'D': [1, 1, 1, 1, 1, 0], // R3 extended
+    'E': [1, 1, 1, 1, 0, 0], // R2, R3 extended
+    'F': [1, 1, 1, 0, 0, 0], // R1, R2, R3 extended
+    'G': [1, 1, 0, 0, 0, 0], // L3, R1, R2, R3 extended
+    'A': [1, 0, 0, 0, 0, 0], // L2, L3, R1, R2, R3 extended
+};
+
+// Covered hardware sensor IDs per recorder note for haptic actuation
+const RECORDER_NOTE_HARDWARE_FINGERS = {
+    'C': [4, 5, 6, 3, 2, 1],
+    'D': [4, 5, 6, 3, 2],
+    'E': [4, 5, 6, 3],
+    'F': [4, 5, 6],
+    'G': [4, 5],
+    'A': [4],
+};
+
+const RECORDER_SEQUENCES = {
+    level1: [
+        ['C'],
+        ['A'],
+        ['F'],
+    ],
+    level2: [
+        ['C', 'E'],
+        ['D', 'F', 'E'],
+        ['A', 'D'],
+        ['G', 'C', 'E'],
+    ],
+    level3: [
+        ['C', 'F', 'A', 'D', 'G']
+    ],
+    trainingTarget: ['C', 'F', 'A', 'D', 'G']
+};
+
+// Aliases for backward-compatibility with existing piano references
+const FINGER_NOTES = PIANO_FINGER_NOTES;
+const NOTE_FREQUENCIES = PIANO_NOTE_FREQUENCIES;
+const SEQUENCES = PIANO_SEQUENCES;
+
+// Profiling plans
 const PROFILING_LEVELS = ['level1', 'level1', 'level2'];
-const PROFILING_SEQ_INDICES = [0, 1, 0]; // which sequence from each level
-
-// Training plan: 6 sequences (L1×2, L2×2, L3×2)
-const TRAINING_LEVELS = ['level1', 'level1', 'level2', 'level2', 'level3', 'level3'];
-const TRAINING_SEQ_INDICES = [0, 2, 1, 2, 0, 1];
-
-// Retention plan: 3 sequences (L1, L2, L3) — same sequences used in training
-const RETENTION_LEVELS = ['level1', 'level2', 'level3'];
-const RETENTION_SEQ_INDICES = [0, 1, 0];
+const PROFILING_SEQ_INDICES = [0, 1, 0];
 
 // Latin Square for counterbalancing modality order
 const MODALITY_ORDERS = [
@@ -128,6 +188,12 @@ class SerialManager {
         await this.send(`V${finger}:${durationMs}`);
     }
 
+    async vibrateFingers(fingers, durationMs = 300) {
+        if (!fingers || fingers.length === 0) return;
+        const cmd = `P${fingers.join(',')}:${durationMs}`;
+        await this.send(cmd);
+    }
+
     async stopAllMotors() {
         await this.send('X');
     }
@@ -198,51 +264,158 @@ class AudioEngine {
     }
 
     /**
-     * Play a single note for the given finger.
-     * @param {number} finger - Finger number 1-6
+     * Play a single note for the given finger or note name.
+     * @param {number|string} noteOrFinger - Finger number (1-6) or note name ('C','D','E','F','G','A')
      * @param {number} durationMs - Duration in milliseconds
      * @returns {Promise} resolves when the note finishes
      */
-    playNote(finger, durationMs = TARGET_NOTE_DURATION) {
+    playNote(noteOrFinger, durationMs = TARGET_NOTE_DURATION) {
         return new Promise(resolve => {
             this._ensureContext();
-            const freq = NOTE_FREQUENCIES[finger];
+            const isRecorder = (typeof noteOrFinger === 'string' && isNaN(parseInt(noteOrFinger))) || 
+                               (typeof noteOrFinger === 'string' && ['C','D','E','F','G','A'].includes(noteOrFinger.toUpperCase()));
+            
+            let freq = null;
+            if (typeof noteOrFinger === 'number') {
+                freq = PIANO_NOTE_FREQUENCIES[noteOrFinger];
+            } else if (typeof noteOrFinger === 'string') {
+                freq = RECORDER_NOTE_FREQUENCIES[noteOrFinger.toUpperCase()] || PIANO_NOTE_FREQUENCIES[parseInt(noteOrFinger)];
+            }
             if (!freq) { resolve(); return; }
 
-            const osc = this.ctx.createOscillator();
-            const gainNode = this.ctx.createGain();
             const now = this.ctx.currentTime;
             const dur = durationMs / 1000;
 
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(freq, now);
+            if (isRecorder) {
+                // ── Acoustic Woodwind / Soprano Recorder Model ──
+                // Master note gain node
+                const noteGain = this.ctx.createGain();
+                noteGain.gain.setValueAtTime(0, now);
+                // Soft breath attack
+                noteGain.gain.linearRampToValueAtTime(0.85, now + 0.045);
+                // Steady air column sustain
+                noteGain.gain.setValueAtTime(0.80, now + dur - 0.06);
+                // Natural breath release
+                noteGain.gain.linearRampToValueAtTime(0, now + dur);
 
-            // ADSR envelope for pleasant tone
-            gainNode.gain.setValueAtTime(0, now);
-            gainNode.gain.linearRampToValueAtTime(0.8, now + 0.02);    // Attack: 20ms
-            gainNode.gain.linearRampToValueAtTime(0.6, now + 0.08);    // Decay: 60ms
-            gainNode.gain.setValueAtTime(0.6, now + dur - 0.05);       // Sustain
-            gainNode.gain.linearRampToValueAtTime(0, now + dur);       // Release: 50ms
+                // Body resonance formant filter (wooden bore acoustic cavity)
+                const bodyFilter = this.ctx.createBiquadFilter();
+                bodyFilter.type = 'bandpass';
+                bodyFilter.frequency.setValueAtTime(Math.min(freq * 2.2, 2200), now);
+                bodyFilter.Q.setValueAtTime(1.5, now);
 
-            osc.connect(gainNode);
-            gainNode.connect(this.masterGain);
-            osc.start(now);
-            osc.stop(now + dur);
-            osc.onended = () => { resolve(); };
+                // 1. Fundamental oscillator
+                const oscFund = this.ctx.createOscillator();
+                oscFund.type = 'sine';
+                oscFund.frequency.setValueAtTime(freq, now);
+
+                // 2. 2nd Harmonic (gentle air vibration)
+                const oscH2 = this.ctx.createOscillator();
+                const gainH2 = this.ctx.createGain();
+                oscH2.type = 'sine';
+                oscH2.frequency.setValueAtTime(freq * 2, now);
+                gainH2.gain.setValueAtTime(0.18, now);
+                oscH2.connect(gainH2);
+
+                // 3. 3rd Harmonic (characteristic recorder hollow woodwind overtone)
+                const oscH3 = this.ctx.createOscillator();
+                const gainH3 = this.ctx.createGain();
+                oscH3.type = 'triangle';
+                oscH3.frequency.setValueAtTime(freq * 3, now);
+                gainH3.gain.setValueAtTime(0.28, now);
+                oscH3.connect(gainH3);
+
+                // 4. Subtle natural breath vibrato LFO
+                const lfo = this.ctx.createOscillator();
+                const lfoGain = this.ctx.createGain();
+                lfo.frequency.setValueAtTime(5.2, now); // 5.2 Hz natural human vibrato
+                lfoGain.gain.setValueAtTime(0, now);
+                lfoGain.gain.setValueAtTime(0, now + 0.08);
+                lfoGain.gain.linearRampToValueAtTime(freq * 0.012, now + 0.2); // ~1.2% pitch fluctuation
+                lfo.connect(lfoGain);
+                lfoGain.connect(oscFund.frequency);
+                lfoGain.connect(oscH2.frequency);
+                lfoGain.connect(oscH3.frequency);
+
+                // 5. Breath Turbulence Chiff (air blowing over labium edge)
+                const bufferSize = this.ctx.sampleRate * 0.06; // 60ms noise chiff
+                const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const output = noiseBuffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    output[i] = Math.random() * 2 - 1;
+                }
+                const noiseSource = this.ctx.createBufferSource();
+                noiseSource.buffer = noiseBuffer;
+
+                const noiseFilter = this.ctx.createBiquadFilter();
+                noiseFilter.type = 'bandpass';
+                noiseFilter.frequency.setValueAtTime(freq * 2.5, now);
+                noiseFilter.Q.setValueAtTime(3.0, now);
+
+                const noiseGain = this.ctx.createGain();
+                noiseGain.gain.setValueAtTime(0.35, now);
+                noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
+
+                noiseSource.connect(noiseFilter);
+                noiseFilter.connect(noiseGain);
+                noiseGain.connect(noteGain);
+
+                // Connect harmonics into body filter and out to master
+                oscFund.connect(noteGain);
+                gainH2.connect(noteGain);
+                gainH3.connect(noteGain);
+                noteGain.connect(bodyFilter);
+                bodyFilter.connect(this.masterGain);
+
+                // Start all sound nodes
+                oscFund.start(now);
+                oscH2.start(now);
+                oscH3.start(now);
+                lfo.start(now);
+                noiseSource.start(now);
+
+                // Stop all sound nodes
+                oscFund.stop(now + dur);
+                oscH2.stop(now + dur);
+                oscH3.stop(now + dur);
+                lfo.stop(now + dur);
+
+                oscFund.onended = () => resolve();
+            } else {
+                // ── Piano / Hammered String Model ──
+                const osc = this.ctx.createOscillator();
+                const gainNode = this.ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, now);
+
+                // ADSR envelope for piano struck string
+                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.linearRampToValueAtTime(0.8, now + 0.02);    // Attack: 20ms
+                gainNode.gain.linearRampToValueAtTime(0.6, now + 0.08);    // Decay: 60ms
+                gainNode.gain.setValueAtTime(0.6, now + dur - 0.05);       // Sustain
+                gainNode.gain.linearRampToValueAtTime(0, now + dur);       // Release: 50ms
+
+                osc.connect(gainNode);
+                gainNode.connect(this.masterGain);
+                osc.start(now);
+                osc.stop(now + dur);
+                osc.onended = () => { resolve(); };
+            }
         });
     }
 
     /**
      * Play a sequence of notes with gaps between them.
-     * @param {number[]} fingers - Array of finger numbers
+     * @param {Array<number|string>} notes - Array of finger numbers or note names
      * @param {number} noteDuration - Duration of each note in ms
      * @param {number} gapDuration - Gap between notes in ms
      * @returns {Promise} resolves when the full sequence finishes
      */
-    async playSequence(fingers, noteDuration = TARGET_NOTE_DURATION, gapDuration = TARGET_NOTE_GAP) {
-        for (let i = 0; i < fingers.length; i++) {
-            await this.playNote(fingers[i], noteDuration);
-            if (i < fingers.length - 1) {
+    async playSequence(notes, noteDuration = TARGET_NOTE_DURATION, gapDuration = TARGET_NOTE_GAP) {
+        for (let i = 0; i < notes.length; i++) {
+            await this.playNote(notes[i], noteDuration);
+            if (i < notes.length - 1) {
                 await new Promise(r => setTimeout(r, gapDuration));
             }
         }
@@ -288,17 +461,49 @@ class ModalityEngine {
     constructor(audioEngine, serialManager) {
         this.audio = audioEngine;
         this.serial = serialManager;
+        this.onFingerBendHook = null;
+    }
+
+    _getNoteLabel(item) {
+        return typeof item === 'number' ? (FINGER_NOTES[item] || item) : item;
+    }
+
+    waitForFingerBend(targetFinger, timeoutMs = 8000) {
+        return new Promise((resolve) => {
+            let timer = null;
+            const handler = (finger) => {
+                if (finger === targetFinger) {
+                    cleanup();
+                    resolve(true);
+                }
+            };
+
+            const cleanup = () => {
+                if (timer) clearTimeout(timer);
+                if (this.onFingerBendHook === handler) {
+                    this.onFingerBendHook = null;
+                }
+            };
+
+            this.onFingerBendHook = handler;
+
+            timer = setTimeout(() => {
+                cleanup();
+                resolve(false);
+            }, timeoutMs);
+        });
     }
 
     /**
      * Present a sequence using the specified modality.
-     * @param {'visual'|'audio'|'haptic'} modality
-     * @param {number[]} sequence - Finger numbers
+     * @param {'visual'|'audio'|'haptic'|'visual-haptic'} modality
+     * @param {Array<number|string>} sequence - Finger numbers or note names
      * @param {string} displayId - ID of the sequence display container
      * @param {string} instructionId - ID of the instruction text element
+     * @param {string} instrument - 'piano' or 'recorder'
      * @returns {Promise} resolves when presentation is complete
      */
-    async presentSequence(modality, sequence, displayId, instructionId) {
+    async presentSequence(modality, sequence, displayId, instructionId, instrument = 'piano') {
         const display = document.getElementById(displayId);
         const instruction = document.getElementById(instructionId);
 
@@ -308,9 +513,9 @@ class ModalityEngine {
             case 'audio':
                 return this._presentAudio(sequence, display, instruction);
             case 'haptic':
-                return this._presentHaptic(sequence, display, instruction);
+                return this._presentHaptic(sequence, display, instruction, instrument);
             case 'visual-haptic':
-                return this._presentVisualHaptic(sequence, display, instruction);
+                return this._presentVisualHaptic(sequence, display, instruction, instrument);
         }
     }
 
@@ -320,10 +525,10 @@ class ModalityEngine {
         // Build note elements
         display.innerHTML = '';
         const noteEls = [];
-        sequence.forEach((finger, i) => {
+        sequence.forEach((item, i) => {
             const noteEl = document.createElement('span');
             noteEl.className = 'sequence-note';
-            noteEl.textContent = FINGER_NOTES[finger];
+            noteEl.textContent = this._getNoteLabel(item);
             noteEl.id = `${display.id}-note-${i}`;
             display.appendChild(noteEl);
             noteEls.push(noteEl);
@@ -345,7 +550,6 @@ class ModalityEngine {
             noteEls[i].classList.add('played');
         }
 
-        // After presenting, show all notes as reference
         instruction.textContent = 'Now reproduce the sequence!';
     }
 
@@ -353,27 +557,25 @@ class ModalityEngine {
         instruction.textContent = 'Listen carefully, then reproduce the sequence.';
         display.innerHTML = '<span class="text-muted" style="font-size:1.5rem;">🔊 Listen...</span>';
 
-        // Play the sequence as tones only
         await this.audio.playSequence(sequence, TARGET_NOTE_DURATION, TARGET_NOTE_GAP);
 
-        // After playing, don't reveal the notes (audio-only mode)
         display.innerHTML = '<span class="text-muted" style="font-size:1.2rem;">Now reproduce what you heard!</span>';
         instruction.textContent = 'Reproduce the sequence from memory.';
     }
 
-    async _presentHaptic(sequence, display, instruction) {
+    async _presentHaptic(sequence, display, instruction, instrument = 'piano') {
+        if (instrument === 'recorder') {
+            return this._presentInteractiveRecorderHaptic(sequence, display, instruction, false);
+        }
+
         instruction.textContent = 'Feel the vibration pattern, then reproduce the sequence.';
         display.innerHTML = '<span class="text-muted" style="font-size:1.5rem;">✋ Feel the pattern...</span>';
 
         const totalDuration = (sequence.length - 1) * TARGET_INTER_NOTE + 300;
-
-        // Send haptic sequence to Arduino
         if (this.serial.isConnected) {
             await this.serial.vibrateSequence(sequence, TARGET_INTER_NOTE);
-            // Wait for the full sequence to play out on the glove
             await new Promise(r => setTimeout(r, totalDuration));
         } else {
-            // Fallback: just wait the equivalent time
             await new Promise(r => setTimeout(r, totalDuration));
         }
 
@@ -381,16 +583,19 @@ class ModalityEngine {
         instruction.textContent = 'Reproduce the sequence from memory.';
     }
 
-    async _presentVisualHaptic(sequence, display, instruction) {
+    async _presentVisualHaptic(sequence, display, instruction, instrument = 'piano') {
+        if (instrument === 'recorder') {
+            return this._presentInteractiveRecorderHaptic(sequence, display, instruction, true);
+        }
+
         instruction.textContent = 'Watch the screen and feel the vibration pattern, then reproduce it.';
 
-        // Build note elements
         display.innerHTML = '';
         const noteEls = [];
-        sequence.forEach((finger, i) => {
+        sequence.forEach((item, i) => {
             const noteEl = document.createElement('span');
             noteEl.className = 'sequence-note';
-            noteEl.textContent = FINGER_NOTES[finger];
+            noteEl.textContent = this._getNoteLabel(item);
             noteEl.id = `${display.id}-note-${i}`;
             display.appendChild(noteEl);
             noteEls.push(noteEl);
@@ -403,12 +608,13 @@ class ModalityEngine {
             }
         });
 
-        // Highlight notes on screen in tempo AND trigger vibration on glove (Audio muted)
+        // Highlight notes on screen in tempo AND trigger vibration on glove
         for (let i = 0; i < noteEls.length; i++) {
             noteEls[i].classList.add('highlight');
             if (this.serial.isConnected) {
                 this.serial.vibrateFinger(sequence[i], TARGET_NOTE_DURATION);
             }
+            await this.audio.playNote(sequence[i], TARGET_NOTE_DURATION);
             await new Promise(r => setTimeout(r, TARGET_NOTE_DURATION + TARGET_NOTE_GAP));
             noteEls[i].classList.remove('highlight');
             noteEls[i].classList.add('played');
@@ -417,16 +623,96 @@ class ModalityEngine {
         instruction.textContent = 'Now reproduce the sequence!';
     }
 
+    async _presentInteractiveRecorderHaptic(sequence, display, instruction, isVisualHaptic = false) {
+        const FINGER_LABELS = {
+            4: 'L1 (Left Index)',
+            5: 'L2 (Left Middle)',
+            6: 'L3 (Left Ring)',
+            3: 'R1 (Right Index)',
+            2: 'R2 (Right Middle)',
+            1: 'R3 (Right Ring)'
+        };
+
+        instruction.textContent = 'Follow the vibrations: bend each finger as it buzzes!';
+
+        display.innerHTML = '';
+        const noteEls = [];
+        sequence.forEach((item, i) => {
+            const noteEl = document.createElement('span');
+            noteEl.className = 'sequence-note';
+            noteEl.textContent = this._getNoteLabel(item);
+            noteEl.id = `${display.id}-note-${i}`;
+            if (!isVisualHaptic) {
+                noteEl.style.opacity = '0.4'; // Dim in pure haptic mode to avoid visual cueing
+            }
+            display.appendChild(noteEl);
+            noteEls.push(noteEl);
+
+            if (i < sequence.length - 1) {
+                const arrow = document.createElement('span');
+                arrow.className = 'sequence-arrow';
+                arrow.textContent = '→';
+                display.appendChild(arrow);
+            }
+        });
+
+        for (let i = 0; i < sequence.length; i++) {
+            const note = sequence[i];
+            const activeFingers = RECORDER_NOTE_HARDWARE_FINGERS[note] || [];
+
+            noteEls[i].classList.add('highlight');
+            noteEls[i].style.opacity = '1';
+
+            // Step through each required finger one by one
+            for (let fIdx = 0; fIdx < activeFingers.length; fIdx++) {
+                const finger = activeFingers[fIdx];
+                const label = FINGER_LABELS[finger] || `Finger ${finger}`;
+
+                instruction.textContent = `▶ Note ${note}: Buzzing ${label} — Bend this finger now!`;
+
+                // Buzz the target finger
+                if (this.serial.isConnected) {
+                    await this.serial.vibrateFinger(finger, 300);
+                }
+
+                // If device connected, wait for user to physically bend this finger
+                if (this.serial.isConnected) {
+                    let bent = false;
+                    for (let retry = 0; retry < 3 && !bent; retry++) {
+                        bent = await this.waitForFingerBend(finger, 2500);
+                        if (!bent && retry < 2 && this.serial.isConnected) {
+                            await this.serial.vibrateFinger(finger, 200);
+                        }
+                    }
+                } else {
+                    // Fallback simulation when device not connected
+                    await new Promise(r => setTimeout(r, 650));
+                }
+            }
+
+            // All fingers for this note are bent! Play the acoustic sample
+            instruction.textContent = `✅ Note ${note} formed! Listen to the tone...`;
+            await this.audio.playNote(note, 450);
+            await new Promise(r => setTimeout(r, 450));
+
+            noteEls[i].classList.remove('highlight');
+            noteEls[i].classList.add('played');
+        }
+
+        instruction.textContent = 'Now reproduce what you felt on your fingers!';
+    }
+
     /**
      * Build static sequence display (for visual reference during input).
      */
     buildSequenceDisplay(sequence, displayId) {
         const display = document.getElementById(displayId);
+        if (!display) return;
         display.innerHTML = '';
-        sequence.forEach((finger, i) => {
+        sequence.forEach((item, i) => {
             const noteEl = document.createElement('span');
             noteEl.className = 'sequence-note';
-            noteEl.textContent = FINGER_NOTES[finger];
+            noteEl.textContent = this._getNoteLabel(item);
             noteEl.id = `${display.id}-note-${i}`;
             display.appendChild(noteEl);
 
@@ -442,7 +728,184 @@ class ModalityEngine {
 
 
 // ═══════════════════════════════════════════════════════════════════════
-//  MODULE 4: DataCollector — Data model, storage, export
+//  MODULE 3.5: RecorderOnsetDetector — Multi-finger synchrony window
+// ═══════════════════════════════════════════════════════════════════════
+class RecorderOnsetDetector {
+    constructor(stableHoldMs = RECORDER_STABLE_HOLD_MS) {
+        this.stableHoldMs = stableHoldMs;
+        this.fingerState = [0, 0, 0, 0, 0, 0]; // [L1, L2, L3, R1, R2, R3]
+        this.lastChangeTimes = [0, 0, 0, 0, 0, 0];
+        this.holdTimeout = null;
+        this.holdInterval = null;
+        this.holdStartTime = 0;
+        this.onNoteDetected = null;
+        this.onStateChange = null; // Callback for live UI preview & hold progress
+        this.activeTransitionChanges = [];
+        this.isActive = false;
+        this.lastCommittedNote = null;
+        this.isHoldingCandidate = null;
+    }
+
+    hardwareFingerToHoleIndex(finger) {
+        const map = {
+            4: 0, // L1 (Hole 1)
+            5: 1, // L2 (Hole 2)
+            6: 2, // L3 (Hole 3)
+            3: 3, // R1 (Hole 4)
+            2: 4, // R2 (Hole 5)
+            1: 5  // R3 (Hole 6)
+        };
+        return map[finger] !== undefined ? map[finger] : (finger - 1);
+    }
+
+    reset() {
+        if (this.holdTimeout) clearTimeout(this.holdTimeout);
+        if (this.holdInterval) clearInterval(this.holdInterval);
+        this.holdTimeout = null;
+        this.holdInterval = null;
+        this.activeTransitionChanges = [];
+        this.lastCommittedNote = null;
+        this.isHoldingCandidate = null;
+        this._notifyStateChange(null, 0);
+    }
+
+    handleFingerChange(finger, isBent, timestamp) {
+        const holeIdx = this.hardwareFingerToHoleIndex(finger);
+        const oldState = this.fingerState[holeIdx];
+        const newState = isBent ? 1 : 0;
+
+        if (oldState !== newState) {
+            this.fingerState[holeIdx] = newState;
+            this.lastChangeTimes[holeIdx] = timestamp;
+            this.activeTransitionChanges.push({ holeIdx, timestamp, state: newState });
+        }
+
+        // Cancel any pending hold timer when finger state changes
+        if (this.holdTimeout) {
+            clearTimeout(this.holdTimeout);
+            this.holdTimeout = null;
+        }
+        if (this.holdInterval) {
+            clearInterval(this.holdInterval);
+            this.holdInterval = null;
+        }
+
+        if (!this.isActive) return;
+
+        // Check if the current finger state corresponds to a valid recorder note
+        const currentVector = [...this.fingerState];
+        const matchedNote = this._getHierarchicalNoteMatch(currentVector);
+
+        if (!matchedNote) {
+            // Open hand [0,0,0,0,0,0] or non-matching transition shape
+            if (currentVector.every(v => v === 0)) {
+                this.lastCommittedNote = null;
+            }
+            this.isHoldingCandidate = null;
+            this._notifyStateChange(null, 0);
+            return;
+        }
+
+        // If this note is already committed and user didn't change fingering, keep stable UI
+        if (matchedNote === this.lastCommittedNote) {
+            this._notifyStateChange(matchedNote, 100);
+            return;
+        }
+
+        // Start stable hold timer for this candidate note
+        this.isHoldingCandidate = matchedNote;
+        this.holdStartTime = Date.now();
+        const candidateVector = [...currentVector];
+        const transitionTimes = this.activeTransitionChanges.map(c => c.timestamp);
+        const spread = transitionTimes.length > 1 ? (Math.max(...transitionTimes) - Math.min(...transitionTimes)) : 0;
+
+        this._notifyStateChange(matchedNote, 10);
+
+        this.holdInterval = setInterval(() => {
+            const elapsed = Date.now() - this.holdStartTime;
+            const pct = Math.min(95, Math.round((elapsed / this.stableHoldMs) * 100));
+            this._notifyStateChange(matchedNote, pct);
+        }, 20);
+
+        this.holdTimeout = setTimeout(() => {
+            if (this.holdInterval) clearInterval(this.holdInterval);
+            this.holdInterval = null;
+            this._notifyStateChange(matchedNote, 100);
+            this._commitNoteEvent(matchedNote, candidateVector, timestamp, spread);
+        }, this.stableHoldMs);
+    }
+
+    _notifyStateChange(noteName, progressPct) {
+        if (this.onStateChange) {
+            const holeNames = ['L1', 'L2', 'L3', 'R1', 'R2', 'R3'];
+            const active = this.fingerState
+                .map((v, i) => v === 1 ? holeNames[i] : null)
+                .filter(Boolean);
+
+            this.onStateChange({
+                vector: [...this.fingerState],
+                activeFingers: active,
+                noteName: noteName,
+                progressPct: progressPct
+            });
+        }
+    }
+
+    /**
+     * Noise-tolerant hierarchical diatonic woodwind matcher.
+     * Matches based on progressive top-down hole closure starting at Hole 1 (L1),
+     * tolerating resting noise on lower open holes.
+     */
+    _getHierarchicalNoteMatch(vector) {
+        // If all 6 holes are open, no note
+        if (vector.every(v => v === 0)) return null;
+
+        // In recorder acoustics, Hole 1 (L1) must be closed to produce standard diatonic notes
+        if (vector[0] !== 1) return null;
+
+        // Count consecutive closed holes from top down [L1, L2, L3, R1, R2, R3]
+        let consecutiveClosed = 0;
+        for (let i = 0; i < 6; i++) {
+            if (vector[i] === 1) {
+                consecutiveClosed++;
+            } else {
+                break; // Stop at first open tone hole
+            }
+        }
+
+        switch (consecutiveClosed) {
+            case 6: return 'C'; // All 6 covered
+            case 5: return 'D'; // L1, L2, L3, R1, R2 covered (R3 open)
+            case 4: return 'E'; // L1, L2, L3, R1 covered (R2, R3 open)
+            case 3: return 'F'; // L1, L2, L3 covered (Right hand open)
+            case 2: return 'G'; // L1, L2 covered (L3, Right hand open)
+            case 1: return 'A'; // L1 covered (L2..R3 open)
+            default: return null;
+        }
+    }
+
+    _commitNoteEvent(noteName, vector, timestamp, spreadMs) {
+        this.lastCommittedNote = noteName;
+        this.activeTransitionChanges = [];
+        this.holdTimeout = null;
+
+        const noteEvent = {
+            note: noteName,
+            noteName: noteName,
+            fingers: vector,
+            timestamp: Date.now(),
+            spreadMs: spreadMs
+        };
+
+        if (this.onNoteDetected) {
+            this.onNoteDetected(noteEvent);
+        }
+    }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════
+//  MODULE 4: DataCollector — Relational Data Access Layer & Storage
 // ═══════════════════════════════════════════════════════════════════════
 class DataCollector {
     constructor() {
@@ -452,10 +915,12 @@ class DataCollector {
     /**
      * Initialize a new participant record.
      */
-    createParticipant(participantId, group, experience, dominantHand, expectedModality) {
+    createParticipant(participantId, group, experience, dominantHand, expectedModality, instrument = 'piano', windExperience = 'none') {
         this.participantData = {
             participantId,
+            instrument: instrument || 'piano',
             priorExperience: experience || 'none',
+            priorWindExperience: windExperience || 'none',
             dominantHand: dominantHand || 'right',
             expectedModality: expectedModality || 'unsure',
             experimentalGroup: group,
@@ -477,25 +942,33 @@ class DataCollector {
     }
 
     /**
-     * Load an existing participant from localStorage.
+     * Load an existing participant from localStorage across active, archived, or pilot keys.
      * @returns {object|null} participant data or null if not found
      */
     loadParticipant(participantId) {
-        const key = `amlt_data_${participantId}`;
-        const data = localStorage.getItem(key);
-        if (data) {
-            this.participantData = JSON.parse(data);
-            return this.participantData;
+        const prefixes = ['amlt_data_', 'amlt_archive_', 'amlt_pilot_'];
+        for (const prefix of prefixes) {
+            const key = `${prefix}${participantId}`;
+            const data = localStorage.getItem(key);
+            if (data) {
+                try {
+                    this.participantData = JSON.parse(data);
+                    return this.participantData;
+                } catch (e) {}
+            }
         }
         return null;
     }
 
     /**
      * Scan localStorage for participant records based on study type.
+     * @param {'main'|'archive'|'pilot'} studyType
      */
     getAllParticipants(studyType = 'main') {
         const list = [];
-        const targetPrefix = studyType === 'pilot' ? 'amlt_pilot_' : 'amlt_data_';
+        let targetPrefix = 'amlt_data_';
+        if (studyType === 'pilot') targetPrefix = 'amlt_pilot_';
+        else if (studyType === 'archive') targetPrefix = 'amlt_archive_';
         
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
@@ -539,6 +1012,34 @@ class DataCollector {
                 } catch (e) {}
             }
         }
+    }
+
+    /**
+     * Archive previous study run data so new participant IDs start clean from P01.
+     */
+    archivePreviousStudyData() {
+        if (localStorage.getItem('amlt_archive_migration_done_v2') === 'true') return;
+
+        const keysToArchive = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('amlt_data_')) {
+                keysToArchive.push(key);
+            }
+        }
+
+        keysToArchive.forEach(key => {
+            try {
+                const data = JSON.parse(localStorage.getItem(key));
+                if (data && data.participantId) {
+                    const archiveKey = `amlt_archive_${data.participantId}`;
+                    localStorage.setItem(archiveKey, JSON.stringify(data));
+                    localStorage.removeItem(key);
+                }
+            } catch (e) {}
+        });
+
+        localStorage.setItem('amlt_archive_migration_done_v2', 'true');
     }
 
     /**
@@ -593,17 +1094,23 @@ class DataCollector {
     }
 
     /**
-     * Update participant custom notes.
+     * Update participant custom notes across active, archive, and pilot records.
      */
     updateParticipantNotes(participantId, notes) {
-        const key = `amlt_data_${participantId}`;
-        const dataStr = localStorage.getItem(key);
-        if (dataStr) {
-            const data = JSON.parse(dataStr);
-            data.notes = notes;
-            localStorage.setItem(key, JSON.stringify(data));
-            if (this.participantData && this.participantData.participantId === participantId) {
-                this.participantData.notes = notes;
+        const prefixes = ['amlt_data_', 'amlt_archive_', 'amlt_pilot_'];
+        for (const prefix of prefixes) {
+            const key = `${prefix}${participantId}`;
+            const dataStr = localStorage.getItem(key);
+            if (dataStr) {
+                try {
+                    const data = JSON.parse(dataStr);
+                    data.notes = notes;
+                    localStorage.setItem(key, JSON.stringify(data));
+                    if (this.participantData && this.participantData.participantId === participantId) {
+                        this.participantData.notes = notes;
+                    }
+                    break;
+                } catch (e) {}
             }
         }
     }
@@ -612,8 +1119,9 @@ class DataCollector {
      * Delete a single participant record.
      */
     deleteParticipant(participantId) {
-        const key = `amlt_data_${participantId}`;
-        localStorage.removeItem(key);
+        localStorage.removeItem(`amlt_data_${participantId}`);
+        localStorage.removeItem(`amlt_archive_${participantId}`);
+        localStorage.removeItem(`amlt_pilot_${participantId}`);
         if (this.participantData && this.participantData.participantId === participantId) {
             this.participantData = null;
         }
@@ -630,7 +1138,7 @@ class DataCollector {
     }
 
     /**
-     * Record a single trial attempt.
+     * Record a single trial attempt (relational schema).
      */
     recordTrial(trialData) {
         if (!this.participantData) return;
@@ -638,6 +1146,7 @@ class DataCollector {
         const trial = {
             trialId: `T${Date.now()}`,
             participantId: this.participantData.participantId,
+            instrument: trialData.instrument || this.participantData.instrument || 'piano',
             sessionNumber: trialData.sessionNumber || 1,
             sessionId: trialData.sessionId || this.participantData.session1Date,
             timestamp: new Date().toISOString(),
@@ -650,12 +1159,15 @@ class DataCollector {
             orderAccuracy: trialData.orderAccuracy,
             timingAccuracy: trialData.timingAccuracy,
             combinedScore: trialData.combinedScore,
+            passed: trialData.passed !== undefined ? trialData.passed : (trialData.combinedScore >= 0.70),
             responseTimeMs: trialData.responseTimeMs,
             completionTimeMs: trialData.completionTimeMs,
             targetInterNoteTiming: TARGET_INTER_NOTE,
             userInterNoteTimings: trialData.userInterNoteTimings || [],
             errors: trialData.errors,
             attemptsOnThisSequence: trialData.attemptsOnThisSequence,
+            fingerTimestamps: trialData.fingerTimestamps || [],
+            synchronySpreads: trialData.synchronySpreads || [],
         };
 
         if (trialData.sessionNumber === 2) {
@@ -712,19 +1224,22 @@ class DataCollector {
      */
     exportTrialCSV() {
         if (!this.participantData) return;
-        const allTrials = [...this.participantData.session1Trials, ...this.participantData.session2Trials];
+        const allTrials = [...(this.participantData.session1Trials || []), ...(this.participantData.session2Trials || [])];
         if (allTrials.length === 0) { alert('No trial data to export.'); return; }
 
-        let csv = 'ParticipantID,DominantHand,Session,Group,Phase,Modality,Level,SequenceTarget,SequenceActual,' +
-                  'OrderAccuracy,TimingAccuracy,CombinedScore,ResponseTimeMs,CompletionTimeMs,' +
-                  'TargetTempo,UserTimings,Errors,Attempt\r\n';
+        let csv = 'ParticipantID,Instrument,DominantHand,Session,Group,Phase,Modality,Level,SequenceTarget,SequenceActual,' +
+                  'OrderAccuracy,TimingAccuracy,CombinedScore,Passed,ResponseTimeMs,CompletionTimeMs,' +
+                  'TargetTempo,UserTimings,Errors,Attempt,SynchronySpreads\r\n';
 
         allTrials.forEach(t => {
-            csv += `${t.participantId},${this.participantData.dominantHand || 'right'},${t.sessionNumber},${t.experimentalGroup},${t.phase},` +
-                   `${t.modality},${t.level},"${t.targetSequence.join('-')}","${t.userSequence.join('-')}",` +
-                   `${t.orderAccuracy.toFixed(3)},${t.timingAccuracy.toFixed(3)},${t.combinedScore.toFixed(3)},` +
+            const seqTarget = Array.isArray(t.targetSequence) ? t.targetSequence.join('-') : t.targetSequence;
+            const seqActual = Array.isArray(t.userSequence) ? t.userSequence.join('-') : t.userSequence;
+            const syncSpreads = (t.synchronySpreads && t.synchronySpreads.length > 0) ? t.synchronySpreads.join('-') : 'N/A';
+            csv += `${t.participantId},${t.instrument || 'piano'},${this.participantData.dominantHand || 'right'},${t.sessionNumber},${t.experimentalGroup},${t.phase},` +
+                   `${t.modality},${t.level},"${seqTarget}","${seqActual}",` +
+                   `${t.orderAccuracy.toFixed(3)},${t.timingAccuracy.toFixed(3)},${t.combinedScore.toFixed(3)},${t.passed ? 1 : 0},` +
                    `${t.responseTimeMs},${t.completionTimeMs},${t.targetInterNoteTiming},` +
-                   `"${t.userInterNoteTimings.map(t => t.toFixed(0)).join('-')}",${t.errors},${t.attemptsOnThisSequence}\r\n`;
+                   `"${t.userInterNoteTimings.map(t => t.toFixed(0)).join('-')}",${t.errors},${t.attemptsOnThisSequence},"${syncSpreads}"\r\n`;
         });
 
         this._downloadFile(csv, `amlt_${this.participantData.participantId}_trials.csv`, 'text/csv');
@@ -736,9 +1251,9 @@ class DataCollector {
     exportSummaryCSV() {
         if (!this.participantData) return;
         const p = this.participantData;
-        const ms = p.modalityScores;
+        const ms = p.modalityScores || {};
 
-        const trainingTrials = p.session1Trials.filter(t => t.phase === 'training');
+        const trainingTrials = (p.session1Trials || []).filter(t => t.phase === 'training');
         const avgTrainOrder = trainingTrials.length > 0 ? trainingTrials.reduce((s, t) => s + t.orderAccuracy, 0) / trainingTrials.length : 0;
         const avgTrainTiming = trainingTrials.length > 0 ? trainingTrials.reduce((s, t) => s + t.timingAccuracy, 0) / trainingTrials.length : 0;
         const avgTrainCombined = trainingTrials.length > 0 ? trainingTrials.reduce((s, t) => s + t.combinedScore, 0) / trainingTrials.length : 0;
@@ -748,12 +1263,12 @@ class DataCollector {
             daysBetween = Math.round((new Date(p.session2Date) - new Date(p.session1Date)) / (1000 * 60 * 60 * 24));
         }
 
-        let csv = 'ParticipantID,DominantHand,Group,VisualScore,AudioScore,HapticScore,VisualHapticScore,' +
+        let csv = 'ParticipantID,Instrument,DominantHand,Group,VisualScore,AudioScore,HapticScore,VisualHapticScore,' +
                   'SelfSelected,SystemSelected,ActiveModality,AdaptationTriggered,' +
                   'TrainingAvgOrderAcc,TrainingAvgTimingAcc,TrainingAvgCombined,' +
                   'RetentionOrderAcc,RetentionTimingAcc,RetentionCombined,DaysBetweenSessions\r\n';
 
-        csv += `${p.participantId},${p.dominantHand || 'right'},${p.experimentalGroup},` +
+        csv += `${p.participantId},${p.instrument || 'piano'},${p.dominantHand || 'right'},${p.experimentalGroup},` +
                `${ms.visual?.composite || 0},${ms.audio?.composite || 0},${ms.haptic?.composite || 0},${ms['visual-haptic']?.composite || 0},` +
                `${p.selfSelectedModality || 'N/A'},${p.systemSelectedModality || 'N/A'},${p.activeModality || 'N/A'},${p.adaptationTriggered ? 'Yes' : 'No'},` +
                `${avgTrainOrder.toFixed(3)},${avgTrainTiming.toFixed(3)},${avgTrainCombined.toFixed(3)},` +
@@ -770,32 +1285,22 @@ class DataCollector {
         const participants = this.getAllParticipants(studyType);
         if (participants.length === 0) { alert('No participant data found.'); return; }
 
-        let csv = '';
-        if (studyType === 'pilot') {
-            csv = 'ParticipantID,Name,Age,Experience,DominantHand,Session,Group,Phase,Modality,Level,SequenceTarget,SequenceActual,' +
-                  'OrderAccuracy,TimingAccuracy,CombinedScore,ResponseTimeMs,CompletionTimeMs,' +
-                  'TargetTempo,Errors,Attempt\r\n';
-        } else {
-            csv = 'ParticipantID,ExpectedModality,Experience,DominantHand,Session,Group,Phase,Modality,Level,SequenceTarget,SequenceActual,' +
-                  'OrderAccuracy,TimingAccuracy,CombinedScore,ResponseTimeMs,CompletionTimeMs,' +
-                  'TargetTempo,Errors,Attempt\r\n';
-        }
+        let csv = 'ParticipantID,Instrument,ExpectedModality,Experience,WindExperience,DominantHand,Session,Group,Phase,Modality,Level,SequenceTarget,SequenceActual,' +
+                  'OrderAccuracy,TimingAccuracy,CombinedScore,Passed,ResponseTimeMs,CompletionTimeMs,' +
+                  'TargetTempo,Errors,Attempt,SynchronySpreads\r\n';
 
         participants.forEach(p => {
             const allTrials = [...(p.session1Trials || []), ...(p.session2Trials || [])];
             allTrials.forEach(t => {
-                let prefixCols = '';
-                if (studyType === 'pilot') {
-                    prefixCols = `${p.participantId},"${p.name || ''}",${p.age || ''},`;
-                } else {
-                    prefixCols = `${p.participantId},${p.expectedModality || 'unsure'},`;
-                }
+                const seqTarget = Array.isArray(t.targetSequence) ? t.targetSequence.join('-') : t.targetSequence;
+                const seqActual = Array.isArray(t.userSequence) ? t.userSequence.join('-') : t.userSequence;
+                const syncSpreads = (t.synchronySpreads && t.synchronySpreads.length > 0) ? t.synchronySpreads.join('-') : 'N/A';
                 
-                csv += `${prefixCols}${p.priorExperience || 'none'},${p.dominantHand || 'right'},${t.sessionNumber},${p.experimentalGroup},${t.phase},` +
-                       `${t.modality},${t.level},"${t.targetSequence.join('-')}","${t.userSequence.join('-')}",` +
-                       `${t.orderAccuracy.toFixed(3)},${t.timingAccuracy.toFixed(3)},${t.combinedScore.toFixed(3)},` +
+                csv += `${p.participantId},${p.instrument || 'piano'},${p.expectedModality || 'unsure'},${p.priorExperience || 'none'},${p.priorWindExperience || 'none'},${p.dominantHand || 'right'},${t.sessionNumber},${p.experimentalGroup},${t.phase},` +
+                       `${t.modality},${t.level},"${seqTarget}","${seqActual}",` +
+                       `${t.orderAccuracy.toFixed(3)},${t.timingAccuracy.toFixed(3)},${t.combinedScore.toFixed(3)},${t.passed ? 1 : 0},` +
                        `${t.responseTimeMs},${t.completionTimeMs},${t.targetInterNoteTiming},` +
-                       `${t.errors},${t.attemptsOnThisSequence}\r\n`;
+                       `${t.errors},${t.attemptsOnThisSequence},"${syncSpreads}"\r\n`;
             });
         });
 
@@ -809,18 +1314,10 @@ class DataCollector {
         const participants = this.getAllParticipants(studyType);
         if (participants.length === 0) { alert('No participant data found.'); return; }
 
-        let csv = '';
-        if (studyType === 'pilot') {
-            csv = 'ParticipantID,Name,Age,Experience,DominantHand,Group,VisualScore,AudioScore,HapticScore,VisualHapticScore,' +
+        let csv = 'ParticipantID,Instrument,ExpectedModality,Experience,WindExperience,DominantHand,Group,VisualScore,AudioScore,HapticScore,VisualHapticScore,' +
                   'SelfSelected,SystemSelected,ActiveModality,AdaptationTriggered,' +
                   'TrainingAvgOrderAcc,TrainingAvgTimingAcc,TrainingAvgCombined,' +
                   'RetentionOrderAcc,RetentionTimingAcc,RetentionCombined,DaysBetweenSessions,Notes\r\n';
-        } else {
-            csv = 'ParticipantID,ExpectedModality,Experience,DominantHand,Group,VisualScore,AudioScore,HapticScore,VisualHapticScore,' +
-                  'SelfSelected,SystemSelected,ActiveModality,AdaptationTriggered,' +
-                  'TrainingAvgOrderAcc,TrainingAvgTimingAcc,TrainingAvgCombined,' +
-                  'RetentionOrderAcc,RetentionTimingAcc,RetentionCombined,DaysBetweenSessions,Notes\r\n';
-        }
 
         participants.forEach(p => {
             const ms = p.modalityScores || {};
@@ -836,14 +1333,7 @@ class DataCollector {
 
             const sanitizedNotes = (p.notes || '').replace(/"/g, '""').replace(/\r?\n/g, ' ');
 
-            let prefixCols = '';
-            if (studyType === 'pilot') {
-                prefixCols = `${p.participantId},"${p.name || ''}",${p.age || ''},`;
-            } else {
-                prefixCols = `${p.participantId},${p.expectedModality || 'unsure'},`;
-            }
-
-            csv += `${prefixCols}${p.priorExperience || 'none'},${p.dominantHand || 'right'},${p.experimentalGroup},` +
+            csv += `${p.participantId},${p.instrument || 'piano'},${p.expectedModality || 'unsure'},${p.priorExperience || 'none'},${p.priorWindExperience || 'none'},${p.dominantHand || 'right'},${p.experimentalGroup},` +
                    `${ms.visual?.composite || 0},${ms.audio?.composite || 0},${ms.haptic?.composite || 0},${ms['visual-haptic']?.composite || 0},` +
                    `${p.selfSelectedModality || 'N/A'},${p.systemSelectedModality || 'N/A'},${p.activeModality || 'N/A'},${p.adaptationTriggered ? 'Yes' : 'No'},` +
                    `${avgTrainOrder.toFixed(3)},${avgTrainTiming.toFixed(3)},${avgTrainCombined.toFixed(3)},` +
@@ -887,9 +1377,11 @@ class DataCollector {
 
         const payload = {
             participantId: p.participantId,
+            instrument: p.instrument || 'piano',
             name: p.name || 'N/A',
             age: p.age || 'N/A',
             priorExperience: p.priorExperience || 'none',
+            priorWindExperience: p.priorWindExperience || 'none',
             dominantHand: p.dominantHand || 'right',
             experimentalGroup: p.experimentalGroup,
             modalityScores: {
@@ -958,47 +1450,78 @@ class DataCollector {
 
 
 // ═══════════════════════════════════════════════════════════════════════
-//  MODULE 5: Scoring — Order accuracy, timing accuracy, combined
+//  MODULE 5: Scoring — Generalized Acc_order, Acc_timing, Combined Score
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
- * Compute the Longest Common Subsequence length between two arrays.
+ * Compute note-level match score (1/6 * sum(matches) for recorder, binary 0 or 1 for piano).
  */
-function lcsLength(a, b) {
-    const m = a.length, n = b.length;
-    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-    for (let i = 1; i <= m; i++) {
-        for (let j = 1; j <= n; j++) {
-            if (a[i - 1] === b[j - 1]) {
-                dp[i][j] = dp[i - 1][j - 1] + 1;
-            } else {
-                dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
-            }
+function computeNoteMatch(targetNote, userNote, instrument = 'piano') {
+    if (instrument === 'piano') {
+        return targetNote === userNote ? 1.0 : 0.0;
+    }
+
+    const targetFingers = Array.isArray(targetNote) ? targetNote : RECORDER_NOTE_FINGERS[targetNote];
+    const userFingers = Array.isArray(userNote)
+        ? userNote
+        : (RECORDER_NOTE_FINGERS[userNote] || (userNote?.fingers ? userNote.fingers : null));
+
+    if (!targetFingers || !userFingers) {
+        return (targetNote === userNote) ? 1.0 : 0.0;
+    }
+
+    let matches = 0;
+    for (let i = 0; i < 6; i++) {
+        if (targetFingers[i] === userFingers[i]) {
+            matches++;
         }
     }
-    return dp[m][n];
+    return matches / 6.0;
 }
 
 /**
- * Score a user's attempt against a target sequence.
- * @param {number[]} target - Expected finger sequence
- * @param {number[]} user - User's finger sequence
+ * Generalized scoring function for both Piano and Recorder.
+ * For Piano: mathematically identical to legacy LCS.
+ * For Recorder: fractional match score per note with LCS-style alignment.
+ * @param {Array} target - Expected sequence
+ * @param {Array} user - User's performed sequence
  * @param {number[]} timestamps - Timestamps (ms) for each user input
+ * @param {string} instrument - 'piano' or 'recorder'
+ * @param {number} targetInterNote - Target interval in ms
  * @returns {{ orderAccuracy, timingAccuracy, combinedScore, errors, interNoteTimings }}
  */
-function scoreAttempt(target, user, timestamps) {
-    // Order Accuracy via LCS
-    const lcs = lcsLength(target, user);
-    const orderAccuracy = target.length > 0 ? lcs / target.length : 0;
+function scoreAttempt(target, user, timestamps, instrument = 'piano', targetInterNote = TARGET_INTER_NOTE) {
+    const m = target.length;
+    const n = user.length;
 
-    // Count errors (wrong fingers)
-    let errors = 0;
-    for (let i = 0; i < Math.min(target.length, user.length); i++) {
-        if (target[i] !== user[i]) errors++;
+    // Alignment matrix using fractional note match
+    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            const userItem = user[j - 1];
+            const targetItem = target[i - 1];
+            const matchScore = computeNoteMatch(targetItem, userItem, instrument);
+            
+            dp[i][j] = Math.max(
+                dp[i - 1][j],
+                dp[i][j - 1],
+                dp[i - 1][j - 1] + matchScore
+            );
+        }
     }
-    errors += Math.abs(target.length - user.length); // Missing or extra notes
 
-    // Timing Accuracy
+    const maxAlignmentScore = m > 0 ? dp[m][n] : 0;
+    const orderAccuracy = m > 0 ? maxAlignmentScore / m : 0;
+
+    // Errors calculation
+    let errors = 0;
+    for (let i = 0; i < Math.min(m, n); i++) {
+        const match = computeNoteMatch(target[i], user[i], instrument);
+        if (match < 1.0) errors++;
+    }
+    errors += Math.abs(m - n);
+
+    // Timing Accuracy (identical logic)
     let timingAccuracy = 0;
     const interNoteTimings = [];
     if (timestamps.length >= 2) {
@@ -1006,13 +1529,13 @@ function scoreAttempt(target, user, timestamps) {
         for (let i = 1; i < timestamps.length; i++) {
             const actualGap = timestamps[i] - timestamps[i - 1];
             interNoteTimings.push(actualGap);
-            const deviation = Math.abs(actualGap - TARGET_INTER_NOTE) / TARGET_INTER_NOTE;
+            const deviation = Math.abs(actualGap - targetInterNote) / targetInterNote;
             timingScores.push(Math.max(0, 1 - deviation));
         }
         timingAccuracy = timingScores.reduce((s, v) => s + v, 0) / timingScores.length;
     }
 
-    // Combined score
+    // Combined score: 60% order, 40% timing
     const combinedScore = 0.60 * orderAccuracy + 0.40 * timingAccuracy;
 
     return { orderAccuracy, timingAccuracy, combinedScore, errors, interNoteTimings };
@@ -1242,14 +1765,189 @@ class UIRenderer {
     /**
      * Show user's entered sequence as text below finger viz.
      */
-    updateUserSequenceDisplay(elementId, fingers) {
+    updateUserSequenceDisplay(elementId, inputs) {
         const el = document.getElementById(elementId);
         if (!el) return;
-        if (fingers.length === 0) {
+        if (!inputs || inputs.length === 0) {
             el.textContent = '';
             return;
         }
-        el.textContent = fingers.map(f => FINGER_NOTES[f]).join(' → ');
+        el.textContent = inputs.map(item => {
+            if (typeof item === 'number') return (FINGER_NOTES[item] || item);
+            if (typeof item === 'string') return item;
+            if (item && item.note) return item.note;
+            return String(item);
+        }).join(' → ');
+    }
+
+    /**
+     * Dynamically update UI text, finger labels, and hardware mapping for the selected instrument.
+     * @param {'piano'|'recorder'} instrument
+     */
+    updateInstrumentView(instrument = 'piano') {
+        const windGroup = document.getElementById('wind-experience-group');
+        if (windGroup) {
+            if (instrument === 'recorder') {
+                windGroup.classList.remove('hidden');
+            } else {
+                windGroup.classList.add('hidden');
+            }
+        }
+
+        const pianoMappingHtml = `
+            <ul style="margin:0; padding-left:1.2rem; line-height:1.7; font-size:0.9rem; color:var(--text-secondary); text-align:left;">
+                <li><strong style="color:var(--text-primary);">Right Glove (Index, Middle, Ring):</strong>
+                    <ul style="margin:0; padding-left:1.2rem;">
+                        <li>Finger 1 (Note C): Ring Finger</li>
+                        <li>Finger 2 (Note D): Middle Finger</li>
+                        <li>Finger 3 (Note E): Index Finger</li>
+                    </ul>
+                </li>
+                <li class="mt-2"><strong style="color:var(--text-primary);">Left Glove (Index, Middle, Ring):</strong>
+                    <ul style="margin:0; padding-left:1.2rem;">
+                        <li>Finger 4 (Note F): Index Finger</li>
+                        <li>Finger 5 (Note G): Middle Finger</li>
+                        <li>Finger 6 (Note A): Ring Finger</li>
+                    </ul>
+                </li>
+            </ul>
+        `;
+
+        const recorderMappingHtml = `
+            <ul style="margin:0; padding-left:1.2rem; line-height:1.7; font-size:0.9rem; color:var(--text-secondary); text-align:left;">
+                <li><strong style="color:var(--text-primary);">Left Glove (Top 3 Holes):</strong>
+                    <ul style="margin:0; padding-left:1.2rem;">
+                        <li>Hole 1 (L1 / Sensor 4): Index Finger</li>
+                        <li>Hole 2 (L2 / Sensor 5): Middle Finger</li>
+                        <li>Hole 3 (L3 / Sensor 6): Ring Finger</li>
+                    </ul>
+                </li>
+                <li class="mt-2"><strong style="color:var(--text-primary);">Right Glove (Bottom 3 Holes):</strong>
+                    <ul style="margin:0; padding-left:1.2rem;">
+                        <li>Hole 4 (R1 / Sensor 3): Index Finger</li>
+                        <li>Hole 5 (R2 / Sensor 2): Middle Finger</li>
+                        <li>Hole 6 (R3 / Sensor 1): Ring Finger</li>
+                    </ul>
+                </li>
+                <li class="mt-2"><strong style="color:var(--text-primary);">Note Fingering (Curled = Covered):</strong>
+                    <ul style="margin:0; padding-left:1.2rem;">
+                        <li>Note C: All 6 holes covered</li>
+                        <li>Note D: Hole 6 (R-Ring) open</li>
+                        <li>Note E: Holes 5 & 6 (R-Middle, R-Ring) open</li>
+                        <li>Note F: Holes 4, 5 & 6 (Right Hand) open</li>
+                        <li>Note G: Holes 3, 4, 5 & 6 open</li>
+                        <li>Note A: Holes 2, 3, 4, 5 & 6 open (Left Index only)</li>
+                    </ul>
+                </li>
+            </ul>
+        `;
+
+        ['glove-mapping-content', 'returning-glove-mapping-content'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.innerHTML = instrument === 'recorder' ? recorderMappingHtml : pianoMappingHtml;
+            }
+        });
+
+        ['glove-mapping-title', 'returning-glove-mapping-title'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.textContent = '✋ Glove Finger Mapping Reference';
+            }
+        });
+
+        // Update finger indicator boxes on testing screens preserving the 3-span vertical layout
+        const fingerData = instrument === 'recorder' ? {
+            1: { num: '6', note: 'R3', pos: 'R-Ring' },
+            2: { num: '5', note: 'R2', pos: 'R-Middle' },
+            3: { num: '4', note: 'R1', pos: 'R-Index' },
+            4: { num: '1', note: 'L1', pos: 'L-Index' },
+            5: { num: '2', note: 'L2', pos: 'L-Middle' },
+            6: { num: '3', note: 'L3', pos: 'L-Ring' }
+        } : {
+            1: { num: '1', note: 'C', pos: 'R-Ring' },
+            2: { num: '2', note: 'D', pos: 'R-Middle' },
+            3: { num: '3', note: 'E', pos: 'R-Index' },
+            4: { num: '4', note: 'F', pos: 'L-Index' },
+            5: { num: '5', note: 'G', pos: 'L-Middle' },
+            6: { num: '6', note: 'A', pos: 'L-Ring' }
+        };
+
+        ['', 'training-', 'retention-'].forEach(prefix => {
+            for (let f = 1; f <= 6; f++) {
+                const el = document.getElementById(`${prefix}finger-${f}`);
+                if (el && fingerData[f]) {
+                    el.innerHTML = `
+                        <span class="finger-num">${fingerData[f].num}</span>
+                        <span class="finger-note">${fingerData[f].note}</span>
+                        <span class="finger-pos">${fingerData[f].pos}</span>
+                    `;
+                }
+            }
+        });
+
+        // Toggle visibility of recorder fingering quick reference guides and live preview banners on testing screens
+        document.querySelectorAll('.recorder-fingering-guide').forEach(guide => {
+            if (instrument === 'recorder') {
+                guide.classList.remove('hidden');
+            } else {
+                guide.classList.add('hidden');
+            }
+        });
+
+        document.querySelectorAll('.recorder-live-preview').forEach(preview => {
+            if (instrument === 'recorder') {
+                preview.classList.remove('hidden');
+            } else {
+                preview.classList.add('hidden');
+            }
+        });
+    }
+
+    /**
+     * Update real-time live recorder candidate preview and hold progress bar.
+     */
+    updateLiveRecorderPreview(prefix, state) {
+        let previewPrefix = prefix;
+        if (prefix === '') previewPrefix = 'profiling-';
+
+        const preview = document.getElementById(`${previewPrefix}recorder-live-preview`);
+        if (!preview) return;
+
+        const noteBadge = document.getElementById(`${previewPrefix}live-note-name`);
+        const dotsBadge = document.getElementById(`${previewPrefix}live-fingers-dots`);
+        const progressBar = document.getElementById(`${previewPrefix}hold-progress-bar`);
+
+        if (state.noteName) {
+            if (noteBadge) {
+                if (state.progressPct >= 100) {
+                    noteBadge.textContent = `🎵 Note ${state.noteName}`;
+                } else {
+                    noteBadge.textContent = `Forming: Note ${state.noteName}`;
+                }
+                noteBadge.classList.remove('unrecognized');
+            }
+        } else {
+            if (noteBadge) {
+                const active = state.activeFingers || [];
+                if (active.length > 0) {
+                    noteBadge.textContent = `Bent: ${active.join(' + ')}`;
+                } else {
+                    noteBadge.textContent = 'Open Hand (Ready)';
+                }
+                noteBadge.classList.add('unrecognized');
+            }
+        }
+
+        if (dotsBadge && state.vector) {
+            const l = state.vector.slice(0, 3).map(v => v === 1 ? '●' : '○').join('');
+            const r = state.vector.slice(3, 6).map(v => v === 1 ? '●' : '○').join('');
+            dotsBadge.textContent = `[${l} | ${r}]`;
+        }
+
+        if (progressBar) {
+            progressBar.style.width = `${state.progressPct || 0}%`;
+        }
     }
 
     /**
@@ -1420,10 +2118,20 @@ class AppController {
         this.modality = new ModalityEngine(this.audio, this.serial);
         this.data = new DataCollector();
         this.data.migratePilotData(); // Move old data to amlt_pilot_ keys
-        this.data.renameMainStudyParticipants(); // Rename current IDs to P01, P02...
-        this.dashboardTab = 'main'; // 'main' or 'pilot'
+        this.data.archivePreviousStudyData(); // Archive previous run data to amlt_archive_ so new IDs reset to P01
+        this.dashboardTab = 'main'; // 'main', 'archive', or 'pilot'
         this.dashboardSubTab = 'all'; // 'all', 'self-selected', 'system-selected'
         this.ui = new UIRenderer();
+
+        // Instrument & Onset Detection
+        this.instrument = 'piano'; // 'piano' or 'recorder'
+        this.recorderDetector = new RecorderOnsetDetector(RECORDER_STABLE_HOLD_MS);
+        this.recorderDetector.onNoteDetected = (noteEvent) => this._handleRecorderNote(noteEvent);
+        this.recorderDetector.onStateChange = (state) => {
+            const prefix = this._getFingerPrefix();
+            this.ui.updateLiveRecorderPreview(prefix, state);
+        };
+        this.userSpreadHistory = [];
 
         // Study state
         this.state = 'SETUP'; // Current state in the state machine
@@ -1439,7 +2147,7 @@ class AppController {
         this.currentModality = '';
 
         // Input collection
-        this.userInputs = [];       // Array of finger numbers
+        this.userInputs = [];       // Array of finger numbers (piano) or note names (recorder)
         this.userTimestamps = [];   // Array of timestamps for each input
         this.isCollectingInput = false;
         this.inputTimeout = null;
@@ -1456,6 +2164,17 @@ class AppController {
 
     // ─── Event Listeners ──────────────────────────────────────────
     _setupEventListeners() {
+        // Instrument selector
+        const instSelect = document.getElementById('instrument-select');
+        if (instSelect) {
+            instSelect.addEventListener('change', (e) => {
+                this.instrument = e.target.value;
+                this.ui.updateInstrumentView(this.instrument);
+            });
+            this.instrument = instSelect.value || 'piano';
+            this.ui.updateInstrumentView(this.instrument);
+        }
+
         // Setup screen
         document.getElementById('connect-btn').addEventListener('click', () => this._handleConnect());
         document.getElementById('start-study-btn').addEventListener('click', () => this._startSession1());
@@ -1531,27 +2250,28 @@ class AppController {
             }
         };
 
-        // Tab switching
+        // Tab switching (Active / Archive / Pilot)
         const tabMain = document.getElementById('tab-main-study');
+        const tabArchive = document.getElementById('tab-archive-study');
         const tabPilot = document.getElementById('tab-pilot-study');
-        if (tabMain && tabPilot) {
-            tabMain.addEventListener('click', () => {
-                this.dashboardTab = 'main';
-                tabMain.classList.add('active');
-                tabPilot.classList.remove('active');
-                this.dashboardSubTab = 'all'; // Reset subtab
-                updateSubtabs(subtabAll);
-                this._renderDashboardList();
-            });
-            tabPilot.addEventListener('click', () => {
-                this.dashboardTab = 'pilot';
-                tabPilot.classList.add('active');
-                tabMain.classList.remove('active');
-                this.dashboardSubTab = 'all'; // Reset subtab
-                updateSubtabs(subtabAll);
-                this._renderDashboardList();
-            });
-        }
+        const tabs = [
+            { el: tabMain, name: 'main' },
+            { el: tabArchive, name: 'archive' },
+            { el: tabPilot, name: 'pilot' }
+        ];
+
+        tabs.forEach(({ el, name }) => {
+            if (el) {
+                el.addEventListener('click', () => {
+                    this.dashboardTab = name;
+                    tabs.forEach(t => t.el && t.el.classList.remove('active'));
+                    el.classList.add('active');
+                    this.dashboardSubTab = 'all'; // Reset subtab
+                    updateSubtabs(subtabAll);
+                    this._renderDashboardList();
+                });
+            }
+        });
 
         if (subtabAll && subtabA && subtabB) {
             subtabAll.addEventListener('click', () => {
@@ -1609,6 +2329,17 @@ class AppController {
             arrow.textContent = '▼';
         }
 
+        const readAdcBtn = document.getElementById('read-adc-btn');
+        if (readAdcBtn) {
+            readAdcBtn.addEventListener('click', () => {
+                if (this.serial && this.serial.isConnected) {
+                    this.serial.sendRaw('D\n');
+                } else {
+                    this.ui.appendDebugLog('[Web App] Cannot read ADC: Device not connected via Web Serial.');
+                }
+            });
+        }
+
         // Stop buttons on testing screens
         ['stop-profiling-btn', 'stop-training-btn', 'stop-retention-btn'].forEach(id => {
             const btn = document.getElementById(id);
@@ -1637,40 +2368,71 @@ class AppController {
         };
 
         this.serial.onFingerBend = (finger, timestamp) => {
-            // Lock inputs if presentation is active
-            if (!this.isCollectingInput) return;
-
-            // Always play the note as real-time feedback
-            this.audio.playNote(finger, 200);
-
-            // Light up the finger in the current screen's finger viz
             const prefix = this._getFingerPrefix();
             this.ui.setFingerActive(prefix, finger, true);
 
-            // Record input if we're collecting
-            this.userInputs.push(finger);
-            this.userTimestamps.push(timestamp);
-
-            // Update user sequence display
-            const seqDisplayId = this._getUserSequenceDisplayId();
-            this.ui.updateUserSequenceDisplay(seqDisplayId, this.userInputs);
-
-            if (this.currentModality === 'visual') {
-                const displayId = this._getSequenceDisplayId();
-                this.ui.updateVisualReproduction(displayId, this.userInputs.length);
+            // Hook for interactive guided haptic sequence presentation
+            if (this.modality && this.modality.onFingerBendHook) {
+                this.modality.onFingerBendHook(finger);
             }
 
-            // Check if we've collected enough inputs
-            if (this.userInputs.length >= this.currentSequence.length) {
-                this._evaluateAttempt();
+            if (!this.isCollectingInput) return;
+
+            if (this.instrument === 'recorder') {
+                this.recorderDetector.handleFingerChange(finger, true, timestamp);
+            } else {
+                // Piano mode: single finger triggers note directly
+                this.audio.playNote(finger, 200);
+
+                this.userInputs.push(finger);
+                this.userTimestamps.push(timestamp);
+
+                const seqDisplayId = this._getUserSequenceDisplayId();
+                this.ui.updateUserSequenceDisplay(seqDisplayId, this.userInputs);
+
+                if (this.currentModality === 'visual') {
+                    const displayId = this._getSequenceDisplayId();
+                    this.ui.updateVisualReproduction(displayId, this.userInputs.length);
+                }
+
+                if (this.userInputs.length >= this.currentSequence.length) {
+                    this._evaluateAttempt();
+                }
             }
         };
 
         this.serial.onFingerRelease = (finger, timestamp) => {
-            if (!this.isCollectingInput) return;
             const prefix = this._getFingerPrefix();
             this.ui.setFingerActive(prefix, finger, false);
+
+            if (!this.isCollectingInput) return;
+
+            if (this.instrument === 'recorder') {
+                this.recorderDetector.handleFingerChange(finger, false, timestamp);
+            }
         };
+    }
+
+    _handleRecorderNote(noteEvent) {
+        if (!this.isCollectingInput) return;
+
+        this.audio.playNote(noteEvent.note, 200);
+
+        this.userInputs.push(noteEvent.note);
+        this.userTimestamps.push(noteEvent.timestamp);
+        this.userSpreadHistory.push(noteEvent.spreadMs || 0);
+
+        const seqDisplayId = this._getUserSequenceDisplayId();
+        this.ui.updateUserSequenceDisplay(seqDisplayId, this.userInputs);
+
+        if (this.currentModality === 'visual') {
+            const displayId = this._getSequenceDisplayId();
+            this.ui.updateVisualReproduction(displayId, this.userInputs.length);
+        }
+
+        if (this.userInputs.length >= this.currentSequence.length) {
+            this._evaluateAttempt();
+        }
     }
 
     // ─── Helpers for screen-specific element prefixes ─────────────
@@ -1771,30 +2533,34 @@ class AppController {
     // ─── Session 1 Start ──────────────────────────────────────────
     async _startSession1() {
         const experience = document.getElementById('participant-experience').value;
+        const windExperience = document.getElementById('participant-wind-experience')?.value || 'none';
         const hand = document.getElementById('participant-hand').value;
         const expectedModality = document.getElementById('participant-expected-modality').value || 'unsure';
+        this.instrument = document.getElementById('instrument-select')?.value || 'piano';
         this.participantId = this._updateGeneratedId();
         this.group = document.getElementById('group-select').value;
 
         if (!this.participantId) return;
 
-        // Determine modality order via Latin Square
+        // Determine modality order via Latin Square (offset by 2 for recorder)
         let charSum = 0;
         for (let i = 0; i < this.participantId.length; i++) {
             const code = this.participantId.charCodeAt(i);
             if (code >= 48 && code <= 57) charSum += (code - 48);
             else charSum += code;
         }
-        this.modalityOrder = MODALITY_ORDERS[charSum % 4];
+        const offset = this.instrument === 'recorder' ? 2 : 0;
+        this.modalityOrder = MODALITY_ORDERS[(charSum + offset) % 4];
         this.consecutiveFailures = 0;
 
         // Create participant record
-        this.data.createParticipant(this.participantId, this.group, experience, hand, expectedModality);
+        this.data.createParticipant(this.participantId, this.group, experience, hand, expectedModality, this.instrument, windExperience);
         this.data.participantData.profilingOrder = [...this.modalityOrder];
 
         // UI setup
         this.ui.setSessionBadge(1);
         this.ui.setPhaseLabels(this.modalityOrder);
+        this.ui.updateInstrumentView(this.instrument);
         this._startSessionTimer();
 
         // Play finger introduction
@@ -1820,11 +2586,13 @@ class AppController {
             return;
         }
 
+        this.instrument = loaded.instrument || 'piano';
         this.group = loaded.experimentalGroup;
         this.data.startSession2();
 
         this.ui.setSessionBadge(2);
         this.ui.updatePhaseBar(false);
+        this.ui.updateInstrumentView(this.instrument);
         this._startSessionTimer();
 
         // Start retention test
@@ -1860,26 +2628,52 @@ class AppController {
         const display = document.getElementById('sequence-display');
         const instruction = document.getElementById('sequence-instruction');
 
-        display.innerHTML = '<span style="font-size:1.3rem;color:var(--text-primary);">Finger Introduction</span>';
-        instruction.textContent = 'Each finger maps to a note. Feel and hear each one.';
+        display.innerHTML = `<span style="font-size:1.3rem;color:var(--text-primary);">${this.instrument === 'recorder' ? 'Recorder' : 'Piano'} Introduction</span>`;
+        instruction.textContent = this.instrument === 'recorder' 
+            ? 'Each note uses a combination of covered holes. Feel and hear each note.' 
+            : 'Each finger maps to a note. Feel and hear each one.';
 
-        const FINGER_MAP_INFO = {
-            1: "Finger 1: Right Glove Ring Finger (Note C)",
-            2: "Finger 2: Right Glove Middle Finger (Note D)",
-            3: "Finger 3: Right Glove Index Finger (Note E)",
-            4: "Finger 4: Left Glove Index Finger (Note F)",
-            5: "Finger 5: Left Glove Middle Finger (Note G)",
-            6: "Finger 6: Left Glove Ring Finger (Note A)"
-        };
+        if (this.instrument === 'recorder') {
+            const notes = ['C', 'D', 'E', 'F', 'G', 'A'];
+            const notesDesc = {
+                'C': 'Note C: All 6 holes covered',
+                'D': 'Note D: Hole 6 (R-Ring) open',
+                'E': 'Note E: Holes 5, 6 open',
+                'F': 'Note F: Holes 4, 5, 6 open',
+                'G': 'Note G: Holes 3, 4, 5, 6 open',
+                'A': 'Note A: Holes 2, 3, 4, 5, 6 open'
+            };
+            for (const note of notes) {
+                instruction.textContent = notesDesc[note];
+                const activeFingers = RECORDER_NOTE_HARDWARE_FINGERS[note] || [];
+                activeFingers.forEach(f => this.ui.setFingerActive('', f, true));
+                await this.audio.playNote(note, 500);
+                if (this.serial.isConnected) {
+                    await this.serial.vibrateFingers(activeFingers, 500);
+                }
+                await new Promise(r => setTimeout(r, 600));
+                this.ui.resetFingers('');
+                await new Promise(r => setTimeout(r, 200));
+            }
+        } else {
+            const FINGER_MAP_INFO = {
+                1: "Finger 1: Right Glove Ring Finger (Note C)",
+                2: "Finger 2: Right Glove Middle Finger (Note D)",
+                3: "Finger 3: Right Glove Index Finger (Note E)",
+                4: "Finger 4: Left Glove Index Finger (Note F)",
+                5: "Finger 5: Left Glove Middle Finger (Note G)",
+                6: "Finger 6: Left Glove Ring Finger (Note A)"
+            };
 
-        for (let finger = 1; finger <= 6; finger++) {
-            instruction.textContent = FINGER_MAP_INFO[finger];
-            this.ui.setFingerActive('', finger, true);
-            await this.audio.playNote(finger, 500);
-            await this.serial.vibrateFinger(finger, 500);
-            await new Promise(r => setTimeout(r, 600));
-            this.ui.setFingerActive('', finger, false);
-            await new Promise(r => setTimeout(r, 200));
+            for (let finger = 1; finger <= 6; finger++) {
+                instruction.textContent = FINGER_MAP_INFO[finger];
+                this.ui.setFingerActive('', finger, true);
+                await this.audio.playNote(finger, 500);
+                await this.serial.vibrateFinger(finger, 500);
+                await new Promise(r => setTimeout(r, 600));
+                this.ui.setFingerActive('', finger, false);
+                await new Promise(r => setTimeout(r, 200));
+            }
         }
 
         instruction.textContent = 'Introduction complete! Starting profiling...';
@@ -1912,7 +2706,7 @@ class AppController {
     }
 
     async _runProfilingTrial() {
-        if (this.currentTrialIndex >= PROFILING_LEVELS.length) {
+        if (this.currentTrialIndex >= 3) {
             // Move to next modality via break screen
             this.currentModalityIndex++;
             if (this.currentModalityIndex >= 4) {
@@ -1923,10 +2717,27 @@ class AppController {
             return;
         }
 
-        const level = PROFILING_LEVELS[this.currentTrialIndex];
-        const seqIdx = PROFILING_SEQ_INDICES[this.currentTrialIndex];
-        this.currentSequence = SEQUENCES[level][seqIdx];
-        this.currentLevel = level;
+        if (this.instrument === 'recorder') {
+            // 3 trials per modality:
+            // Trial 0: Level 1 rotated
+            // Trial 1: Level 1 different rotated
+            // Trial 2: Level 2 rotated
+            if (this.currentTrialIndex === 0) {
+                this.currentSequence = RECORDER_SEQUENCES.level1[this.currentModalityIndex % 3];
+                this.currentLevel = 'level1';
+            } else if (this.currentTrialIndex === 1) {
+                this.currentSequence = RECORDER_SEQUENCES.level1[(this.currentModalityIndex + 1) % 3];
+                this.currentLevel = 'level1';
+            } else {
+                this.currentSequence = RECORDER_SEQUENCES.level2[this.currentModalityIndex % 4];
+                this.currentLevel = 'level2';
+            }
+        } else {
+            const level = PROFILING_LEVELS[this.currentTrialIndex];
+            const seqIdx = PROFILING_SEQ_INDICES[this.currentTrialIndex];
+            this.currentSequence = PIANO_SEQUENCES[level][seqIdx];
+            this.currentLevel = level;
+        }
         this.currentAttempt = 0;
 
         // Update trial counter (4 modalities * 3 trials = 12 total)
@@ -2017,8 +2828,12 @@ class AppController {
             return;
         }
 
-        this.currentSequence = [1, 3, 2, 6, 4]; // C → E → D → A → F (Single Target Sequence)
-        this.currentLevel = 'level2';
+        if (this.instrument === 'recorder') {
+            this.currentSequence = RECORDER_SEQUENCES.level3; // ['C', 'F', 'A', 'D', 'G']
+        } else {
+            this.currentSequence = PIANO_SEQUENCES.level3; // [1, 3, 2, 6, 4]
+        }
+        this.currentLevel = 'level3';
         this.currentAttempt = 0;
 
         document.getElementById('training-trial-counter').textContent =
@@ -2062,8 +2877,12 @@ class AppController {
             return;
         }
 
-        this.currentSequence = [1, 3, 2, 6, 4]; // Same Target Sequence
-        this.currentLevel = 'level2';
+        if (this.instrument === 'recorder') {
+            this.currentSequence = RECORDER_SEQUENCES.level3; // ['C', 'F', 'A', 'D', 'G']
+        } else {
+            this.currentSequence = PIANO_SEQUENCES.level3; // [1, 3, 2, 6, 4]
+        }
+        this.currentLevel = 'level3';
         this.currentAttempt = 0;
         this.currentModality = 'none'; // No cues
 
@@ -2074,7 +2893,7 @@ class AppController {
             `Recall Trial ${this.currentTrialIndex + 1}`;
 
         this.ui.updateTrialInfo('retention-', {
-            level: '2',
+            level: '3',
             orderScore: '—',
             timingScore: '—',
             combinedScore: '—',
@@ -2143,7 +2962,9 @@ class AppController {
         // Reset input state
         this.userInputs = [];
         this.userTimestamps = [];
+        this.userSpreadHistory = [];
         this.isCollectingInput = false;
+        if (this.recorderDetector) this.recorderDetector.reset();
 
         const prefix = this._getFingerPrefix();
         this.ui.resetFingers(prefix);
@@ -2174,7 +2995,7 @@ class AppController {
         const displayId = this._getSequenceDisplayId();
         const instrId = this._getInstructionId();
 
-        await this.modality.presentSequence(this.currentModality, this.currentSequence, displayId, instrId);
+        await this.modality.presentSequence(this.currentModality, this.currentSequence, displayId, instrId, this.instrument);
 
         this.presentationEndTime = Date.now();
 
@@ -2212,8 +3033,13 @@ class AppController {
             badge.className = "status-badge go";
         }
 
+        if (this.recorderDetector) {
+            this.recorderDetector.reset();
+            this.recorderDetector.isActive = true;
+        }
         this.userInputs = [];
         this.userTimestamps = [];
+        this.userSpreadHistory = [];
         this.isCollectingInput = true;
 
         if (this.currentModality === 'visual') {
@@ -2232,49 +3058,19 @@ class AppController {
 
     _evaluateAttempt() {
         this.isCollectingInput = false;
+        if (this.recorderDetector) this.recorderDetector.isActive = false;
         if (this.inputTimeout) clearTimeout(this.inputTimeout);
 
         // Score the attempt
-        const result = scoreAttempt(this.currentSequence, this.userInputs, this.userTimestamps);
+        const result = scoreAttempt(this.currentSequence, this.userInputs, this.userTimestamps, this.instrument, TARGET_INTER_NOTE);
 
         // Calculate response time
         const responseTimeMs = this.userTimestamps.length > 0
-            ? this.userTimestamps[0] - this.presentationEndTime
+            ? Math.max(0, this.userTimestamps[0] - this.presentationEndTime)
             : INPUT_TIMEOUT;
         const completionTimeMs = this.userTimestamps.length >= 2
-            ? this.userTimestamps[this.userTimestamps.length - 1] - this.userTimestamps[0]
+            ? Math.max(0, this.userTimestamps[this.userTimestamps.length - 1] - this.userTimestamps[0])
             : 0;
-
-        // Record the trial
-        const trialRecord = this.data.recordTrial({
-            sessionNumber: this.currentPhase === 'retention' ? 2 : 1,
-            phase: this.currentPhase,
-            modality: this.currentModality,
-            level: parseInt(this.currentLevel.replace('level', '')),
-            targetSequence: [...this.currentSequence],
-            userSequence: [...this.userInputs],
-            orderAccuracy: result.orderAccuracy,
-            timingAccuracy: result.timingAccuracy,
-            combinedScore: result.combinedScore,
-            responseTimeMs,
-            completionTimeMs,
-            userInterNoteTimings: result.interNoteTimings,
-            errors: result.errors,
-            attemptsOnThisSequence: this.currentAttempt,
-        });
-
-        const maxAttempts = this.currentPhase === 'retention' ? 1 : 3;
-
-        // Update UI with scores
-        const trialInfoPrefix = this._getTrialInfoPrefix();
-        this.ui.updateTrialInfo(trialInfoPrefix, {
-            level: this.currentLevel.replace('level', ''),
-            modality: this.currentModality?.charAt(0).toUpperCase() + this.currentModality?.slice(1),
-            attempt: `${this.currentAttempt} / ${maxAttempts}`,
-            orderScore: `${(result.orderAccuracy * 100).toFixed(0)}%`,
-            timingScore: `${(result.timingAccuracy * 100).toFixed(0)}%`,
-            combinedScore: `${(result.combinedScore * 100).toFixed(0)}%`,
-        });
 
         // Determine success based on phase
         let isGoodEnough = false;
@@ -2294,13 +3090,49 @@ class AppController {
                 }
             }
         } else {
-            isGoodEnough = result.combinedScore >= 0.7; // 70% threshold
+            isGoodEnough = result.combinedScore >= 0.70; // 70% threshold
         }
 
+        // Record the trial
+        const trialRecord = this.data.recordTrial({
+            instrument: this.instrument,
+            sessionNumber: this.currentPhase === 'retention' ? 2 : 1,
+            phase: this.currentPhase,
+            modality: this.currentModality,
+            level: parseInt(this.currentLevel.replace('level', '')),
+            targetSequence: [...this.currentSequence],
+            userSequence: [...this.userInputs],
+            orderAccuracy: result.orderAccuracy,
+            timingAccuracy: result.timingAccuracy,
+            combinedScore: result.combinedScore,
+            passed: isGoodEnough,
+            responseTimeMs,
+            completionTimeMs,
+            userInterNoteTimings: result.interNoteTimings,
+            errors: result.errors,
+            attemptsOnThisSequence: this.currentAttempt,
+            fingerTimestamps: [...this.userTimestamps],
+            synchronySpreads: [...this.userSpreadHistory],
+        });
+
+        const maxAttempts = this.currentPhase === 'retention' ? 1 : 3;
+
+        // Update UI with scores
+        const trialInfoPrefix = this._getTrialInfoPrefix();
+        this.ui.updateTrialInfo(trialInfoPrefix, {
+            level: this.currentLevel.replace('level', ''),
+            modality: this.currentModality?.charAt(0).toUpperCase() + this.currentModality?.slice(1),
+            attempt: `${this.currentAttempt} / ${maxAttempts}`,
+            orderScore: `${(result.orderAccuracy * 100).toFixed(0)}%`,
+            timingScore: `${(result.timingAccuracy * 100).toFixed(0)}%`,
+            combinedScore: `${(result.combinedScore * 100).toFixed(0)}%`,
+        });
+
         // Add to attempt history
+        const seqFormatted = this.currentSequence.map(item => typeof item === 'number' ? (FINGER_NOTES[item] || item) : item).join(' → ');
         this.ui.addAttemptHistoryItem(this._getAttemptHistoryId(), {
             correct: isGoodEnough,
-            sequence: this.currentSequence.map(f => FINGER_NOTES[f]).join('→'),
+            sequence: seqFormatted,
             orderAcc: result.orderAccuracy,
             timingAcc: result.timingAccuracy,
             combined: result.combinedScore,
@@ -2610,6 +3442,8 @@ class AppController {
                     <button class="btn btn-danger" id="dashboard-delete-p-btn" style="padding:0.2rem 0.6rem; font-size:0.75rem;">Delete Participant</button>
                 </div>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-top:0.5rem; color:var(--text-secondary);">
+                    <div>Instrument: <span style="color:var(--text-primary); font-weight:600; text-transform:capitalize;">${p.instrument || 'piano'}</span></div>
+                    <div>Prior Wind Exp: <span style="color:var(--text-primary); font-weight:500;">${p.priorWindExperience || 'none'}</span></div>
                     ${this.dashboardTab === 'pilot' ? `
                     <div>Name: <span style="color:var(--text-primary); font-weight:500;">${p.name || 'N/A'}</span></div>
                     <div>Age: <span style="color:var(--text-primary); font-weight:500;">${p.age || 'N/A'}</span></div>
