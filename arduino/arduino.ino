@@ -21,74 +21,137 @@
 // ============================================================
 
 // ── Pin Definitions ──────────────────────────────────────────
-#define adc1 A5   // Flex sensor 1 (Finger 1 / Note C)
-#define adc2 A4   // Flex sensor 2 (Finger 2 / Note D)
-#define adc3 A3   // Flex sensor 3 (Finger 3 / Note E)
-#define adc4 A2   // Flex sensor 4 (Finger 4 / Note F)
-#define adc5 A1   // Flex sensor 5 (Finger 5 / Note G)
-#define adc6 A0   // Flex sensor 6 (Finger 6 / Note A)
+#define adc1 A5 // Flex sensor 1 (Finger 1 / Note C)
+#define adc2 A4 // Flex sensor 2 (Finger 2 / Note D)
+#define adc3 A3 // Flex sensor 3 (Finger 3 / Note E)
+#define adc4 A2 // Flex sensor 4 (Finger 4 / Note F)
+#define adc5 A1 // Flex sensor 5 (Finger 5 / Note G)
+#define adc6 A0 // Flex sensor 6 (Finger 6 / Note A)
 
-#define m1 7      // Vibration motor 1 (Finger 1)
-#define m2 6      // Vibration motor 2 (Finger 2)
-#define m3 5      // Vibration motor 3 (Finger 3)
-#define m4 4      // Vibration motor 4 (Finger 4)
-#define m5 3      // Vibration motor 5 (Finger 5)
-#define m6 2      // Vibration motor 6 (Finger 6)
+#define m1 7 // Vibration motor 1 (Finger 1)
+#define m2 6 // Vibration motor 2 (Finger 2)
+#define m3 5 // Vibration motor 3 (Finger 3)
+#define m4 4 // Vibration motor 4 (Finger 4)
+#define m5 3 // Vibration motor 5 (Finger 5)
+#define m6 2 // Vibration motor 6 (Finger 6)
 
 #define buzzer 11 // Piezo buzzer (startup confirmation only)
-#define ledd   13 // Status LED
+#define ledd 13   // Status LED
 
 // ── Thresholds & Timing ─────────────────────────────────────
-#define BEND_THRESHOLD    640   // ADC value above which = finger bent (lowered from 700 for high sensitivity)
-#define RELEASE_THRESHOLD 540   // ADC value below which = finger released
-#define DEBOUNCE_MS        50   // Ignore state changes within this window
-#define DEFAULT_VIBE_MS   300   // Default single-vibration duration
-#define LOOP_DELAY_MS      10   // Main loop iteration pause
+#define BEND_THRESHOLD                                                         \
+  640 // ADC value above which = finger bent (lowered from 700 for high
+      // sensitivity)
+#define RELEASE_THRESHOLD 540 // ADC value below which = finger released
+#define DEBOUNCE_MS 50        // Ignore state changes within this window
+#define DEFAULT_VIBE_MS 300   // Default single-vibration duration
+#define LOOP_DELAY_MS 10      // Main loop iteration pause
 
 // ── Finger State Arrays ─────────────────────────────────────
 // Lookup tables map finger index (0-5) to hardware pins.
-const int adcPins[6]   = { adc1, adc2, adc3, adc4, adc5, adc6 };
-const int motorPins[6] = { m1,   m2,   m3,   m4,   m5,   m6   };
+const int adcPins[6] = {adc1, adc2, adc3, adc4, adc5, adc6};
+const int motorPins[6] = {m1, m2, m3, m4, m5, m6};
 
-// Per-finger tracking: current state and last-change timestamp
-bool fingerBent[6]           = { false, false, false, false, false, false };
-unsigned long lastChange[6]  = { 0, 0, 0, 0, 0, 0 };
-
-// ── Helper: Vibrate a Single Finger ─────────────────────────
-// Activates the motor on the given pin for `duration` ms, then
-// turns it off.  Blocking — used for V and S commands.
-void vibrateFinger(int pin, int duration) {
-  digitalWrite(pin, HIGH);
-  delay(duration);
-  digitalWrite(pin, LOW);
-}
+// Per-finger tracking: current state, last-change timestamp, and motor off
+// timestamp
+bool fingerBent[6] = {false, false, false, false, false, false};
+unsigned long lastChange[6] = {0, 0, 0, 0, 0, 0};
+unsigned long motorOffTime[6] = {0, 0, 0, 0, 0, 0};
 
 // ── Helper: Stop All Motors ─────────────────────────────────
 void stopAllMotors() {
   for (int i = 0; i < 6; i++) {
     digitalWrite(motorPins[i], LOW);
+    motorOffTime[i] = 0;
   }
+}
+
+// ── Helper: Vibrate a Single Finger ─────────────────────────
+// Activates the motor on the given pin for `duration` ms.
+// Clamped to max 2000ms for safety.
+void vibrateFinger(int pin, int duration) {
+  // Safety clamp duration between 10ms and 2000ms
+  if (duration < 10)
+    duration = 10;
+  if (duration > 2000)
+    duration = 2000;
+
+  digitalWrite(pin, HIGH);
+  delay(duration);
+  digitalWrite(pin, LOW);
+}
+
+// ── Helper: Non-blocking Safety Monitor ────────────────────
+// Ensures no motor remains stuck HIGH
+void checkMotorSafety() {
+  unsigned long now = millis();
+  for (int i = 0; i < 6; i++) {
+    if (motorOffTime[i] > 0 && now >= motorOffTime[i]) {
+      digitalWrite(motorPins[i], LOW);
+      motorOffTime[i] = 0;
+    }
+  }
+}
+
+// ── Helper: Run Hardware Diagnostic Test ───────────────────
+void runDiagnosticTest() {
+  Serial.println(F("--- STARTING HARDWARE DIAGNOSTIC TEST ---"));
+  stopAllMotors();
+
+  // Test each motor 1 to 6
+  for (int i = 0; i < 6; i++) {
+    Serial.print(F("Testing Motor "));
+    Serial.print(i + 1);
+    Serial.println(F("..."));
+    vibrateFinger(motorPins[i], 250);
+    delay(150);
+  }
+
+  // Read all flex sensors
+  Serial.println(F("Reading Flex Sensors:"));
+  for (int i = 0; i < 6; i++) {
+    int val = analogRead(adcPins[i]);
+    Serial.print(F("  Sensor "));
+    Serial.print(i + 1);
+    Serial.print(F(" (A"));
+    Serial.print(5 - i);
+    Serial.print(F("): "));
+    Serial.print(val);
+    Serial.println(
+        val > BEND_THRESHOLD
+            ? F(" [BENT]")
+            : (val < RELEASE_THRESHOLD ? F(" [RELEASED]") : F(" [IDLE]")));
+  }
+  Serial.println(F("--- DIAGNOSTIC TEST COMPLETE ---"));
 }
 
 // ── Command Parser ──────────────────────────────────────────
 // Reads one newline-terminated command from serial and executes
-// it.  Supported commands:
+// it. Supported commands:
 //   V<n>        — vibrate finger n for 300 ms
-//   V<n>:<ms>   — vibrate finger n for <ms> ms
+//   V<n>:<ms>   — vibrate finger n for <ms> ms (max 2000ms)
 //   X           — stop all motors immediately
+//   D           — run hardware diagnostic test
 //   S<f1>,<f2>,...:<delay> — haptic sequence
 void processSerialCommand() {
-  if (!Serial.available()) return;
+  if (!Serial.available())
+    return;
 
   String cmd = Serial.readStringUntil('\n');
-  cmd.trim();  // Strip any trailing \r or whitespace
+  cmd.trim(); // Strip any trailing \r or whitespace
 
-  if (cmd.length() == 0) return;
+  if (cmd.length() == 0)
+    return;
 
   char type = cmd.charAt(0);
 
+  // ── D command: run diagnostic test ─────────────────────
+  if (type == 'D') {
+    runDiagnosticTest();
+  }
+
   // ── V command: vibrate one finger ───────────────────────
-  if (type == 'V') {
+  else if (type == 'V') {
     // Find optional colon for custom duration
     int colonIdx = cmd.indexOf(':');
     int fingerNum;
@@ -97,7 +160,7 @@ void processSerialCommand() {
     if (colonIdx > 0) {
       // Format: V<n>:<ms>
       fingerNum = cmd.substring(1, colonIdx).toInt();
-      duration  = cmd.substring(colonIdx + 1).toInt();
+      duration = cmd.substring(colonIdx + 1).toInt();
     } else {
       // Format: V<n>
       fingerNum = cmd.substring(1).toInt();
@@ -105,7 +168,8 @@ void processSerialCommand() {
 
     // Validate finger number (1-6)
     if (fingerNum >= 1 && fingerNum <= 6) {
-      if (fingerNum == 5 && colonIdx <= 0) duration = 600; // Temp boost for G finger
+      if (fingerNum == 5 && colonIdx <= 0)
+        duration = 600; // Temp boost for G finger
       vibrateFinger(motorPins[fingerNum - 1], duration);
     }
   }
@@ -121,12 +185,13 @@ void processSerialCommand() {
 
     if (colonIdx > 0) {
       fingerList = cmd.substring(1, colonIdx);
-      duration   = cmd.substring(colonIdx + 1).toInt();
+      duration = cmd.substring(colonIdx + 1).toInt();
     } else {
       fingerList = cmd.substring(1);
     }
 
-    if (duration <= 0) duration = DEFAULT_VIBE_MS;
+    if (duration <= 0)
+      duration = DEFAULT_VIBE_MS;
 
     // Collect all valid target pins
     int targetPins[6];
@@ -169,12 +234,18 @@ void processSerialCommand() {
 
   // ── D command: Dump live ADC readings ────────────────────
   else if (type == 'D') {
-    Serial.print("ADC: F1(R3)="); Serial.print(analogRead(adc1));
-    Serial.print(" F2(R2)="); Serial.print(analogRead(adc2));
-    Serial.print(" F3(R1)="); Serial.print(analogRead(adc3));
-    Serial.print(" F4(L1)="); Serial.print(analogRead(adc4));
-    Serial.print(" F5(L2)="); Serial.print(analogRead(adc5));
-    Serial.print(" F6(L3)="); Serial.println(analogRead(adc6));
+    Serial.print("ADC: F1(R3)=");
+    Serial.print(analogRead(adc1));
+    Serial.print(" F2(R2)=");
+    Serial.print(analogRead(adc2));
+    Serial.print(" F3(R1)=");
+    Serial.print(analogRead(adc3));
+    Serial.print(" F4(L1)=");
+    Serial.print(analogRead(adc4));
+    Serial.print(" F5(L2)=");
+    Serial.print(analogRead(adc5));
+    Serial.print(" F6(L3)=");
+    Serial.println(analogRead(adc6));
   }
 
   // ── S command: haptic sequence ──────────────────────────
@@ -184,10 +255,11 @@ void processSerialCommand() {
   else if (type == 'S') {
     // Split at colon to separate finger list from delay
     int colonIdx = cmd.indexOf(':');
-    if (colonIdx < 0) return;  // Malformed — ignore
+    if (colonIdx < 0)
+      return; // Malformed — ignore
 
-    String fingerList = cmd.substring(1, colonIdx);   // e.g. "1,2,3"
-    int pauseMs       = cmd.substring(colonIdx + 1).toInt();
+    String fingerList = cmd.substring(1, colonIdx); // e.g. "1,2,3"
+    int pauseMs = cmd.substring(colonIdx + 1).toInt();
 
     // Walk through the comma-separated finger numbers
     int startPos = 0;
@@ -198,7 +270,7 @@ void processSerialCommand() {
       if (commaIdx < 0) {
         // Last (or only) token
         token = fingerList.substring(startPos);
-        startPos = fingerList.length() + 1;  // Exit after this
+        startPos = fingerList.length() + 1; // Exit after this
       } else {
         token = fingerList.substring(startPos, commaIdx);
         startPos = commaIdx + 1;
@@ -206,11 +278,13 @@ void processSerialCommand() {
 
       int fingerNum = token.toInt();
       if (fingerNum >= 1 && fingerNum <= 6) {
-        int duration = (fingerNum == 5) ? 600 : DEFAULT_VIBE_MS; // Temp boost for G finger
+        int duration =
+            (fingerNum == 5) ? 600 : DEFAULT_VIBE_MS; // Temp boost for G finger
         vibrateFinger(motorPins[fingerNum - 1], duration);
 
         int actualPause = pauseMs - (duration - DEFAULT_VIBE_MS);
-        if (actualPause < 0) actualPause = 0;
+        if (actualPause < 0)
+          actualPause = 0;
 
         // Add inter-note pause unless this was the last finger
         if (startPos <= (int)fingerList.length()) {
@@ -242,8 +316,7 @@ void readFlexSensors() {
         Serial.print('F');
         Serial.println(i + 1);
       }
-    }
-    else if (fingerBent[i] && reading < RELEASE_THRESHOLD) {
+    } else if (fingerBent[i] && reading < RELEASE_THRESHOLD) {
       // Finger just released — check debounce window
       if ((now - lastChange[i]) >= DEBOUNCE_MS) {
         fingerBent[i] = false;
@@ -285,6 +358,7 @@ void setup() {
 // 3. Brief pause to avoid flooding
 void loop() {
   processSerialCommand();
+  checkMotorSafety();
   readFlexSensors();
   delay(LOOP_DELAY_MS);
 }

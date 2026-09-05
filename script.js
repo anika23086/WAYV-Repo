@@ -94,6 +94,59 @@ const RECORDER_SEQUENCES = {
     trainingTarget: ['C', 'F', 'A', 'D', 'G']
 };
 
+// Trumpet (Instrument 3) Specifications
+// Hardware Mapping (Right Hand Only - 3 flex sensors):
+// Right Index (R1)     Valve 1                 3
+// Right Middle (R2)    Valve 2                 2
+// Right Ring (R3)      Valve 3                 1
+// Left Hand (L1, L2, L3) are ignored
+const TRUMPET_NOTE_FREQUENCIES = {
+    'C': 261.63,
+    'D': 293.66,
+    'E': 329.63,
+    'F': 349.23,
+    'G': 392.00,
+    'A': 440.00
+};
+
+// Trumpet 3-valve fingering vectors: [R1, R2, R3] (1 = pressed, 0 = open)
+const TRUMPET_NOTE_FINGERS = {
+    'C': [0, 0, 0], // all open
+    'D': [1, 0, 0], // R1 pressed
+    'E': [0, 1, 0], // R2 pressed
+    'F': [1, 1, 0], // R1, R2 pressed
+    'G': [0, 0, 1], // R3 pressed
+    'A': [1, 1, 1], // all pressed
+};
+
+// Covered hardware sensor IDs per trumpet note for haptic actuation (Valve 1=3, Valve 2=2, Valve 3=1)
+const TRUMPET_NOTE_HARDWARE_FINGERS = {
+    'C': [],
+    'D': [3],
+    'E': [2],
+    'F': [3, 2],
+    'G': [1],
+    'A': [3, 2, 1],
+};
+
+const TRUMPET_SEQUENCES = {
+    level1: [
+        ['C'],
+        ['A'],
+        ['F'],
+    ],
+    level2: [
+        ['C', 'E'],
+        ['D', 'F', 'E'],
+        ['A', 'G'],
+        ['G', 'C', 'E'],
+    ],
+    level3: [
+        ['C', 'F', 'A', 'D', 'G']
+    ],
+    trainingTarget: ['C', 'F', 'A', 'D', 'G']
+};
+
 // Aliases for backward-compatibility with existing piano references
 const FINGER_NOTES = PIANO_FINGER_NOTES;
 const NOTE_FREQUENCIES = PIANO_NOTE_FREQUENCIES;
@@ -125,29 +178,122 @@ class SerialManager {
         this.reader = null;
         this.isConnected = false;
         this.readBuffer = '';
+        this.isMock = !('serial' in navigator);
 
         // Callbacks
         this.onFingerBend = null;   // (fingerNumber, timestamp) => {}
         this.onFingerRelease = null; // (fingerNumber, timestamp) => {}
         this.onConnectionChange = null; // (isConnected) => {}
         this.onRawData = null;       // (msg) => {}
+
+        this.setupKeyboardSimulation();
+    }
+
+    setupKeyboardSimulation() {
+        window.addEventListener('keydown', (e) => {
+            if (e.repeat) return;
+            if (!this.isConnected || !this.isMock) return;
+
+            if (document.activeElement && (
+                document.activeElement.tagName === 'INPUT' || 
+                document.activeElement.tagName === 'TEXTAREA' || 
+                document.activeElement.isContentEditable
+            )) {
+                return;
+            }
+
+            const key = e.key;
+            if (key >= '1' && key <= '6') {
+                const finger = parseInt(key);
+                const timestamp = Date.now();
+                if (this.onFingerBend) {
+                    this.onFingerBend(finger, timestamp);
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (!this.isConnected || !this.isMock) return;
+
+            if (document.activeElement && (
+                document.activeElement.tagName === 'INPUT' || 
+                document.activeElement.tagName === 'TEXTAREA' || 
+                document.activeElement.isContentEditable
+            )) {
+                return;
+            }
+
+            const key = e.key;
+            if (key >= '1' && key <= '6') {
+                const finger = parseInt(key);
+                const timestamp = Date.now();
+                if (this.onFingerRelease) {
+                    this.onFingerRelease(finger, timestamp);
+                }
+            }
+        });
     }
 
     async connect() {
+        if (this.isMock) {
+            console.log('Simulating connection to Glove.');
+            this.isConnected = true;
+            if (this.onConnectionChange) this.onConnectionChange(true);
+            return true;
+        }
+
         if (!('serial' in navigator)) {
             throw new Error('Web Serial API not supported. Please use Chrome or Edge.');
         }
         try {
+            // Clean up any stale port handle
+            if (this.port) {
+                try { await this.disconnect(); } catch (e) { /* ignore cleanup error */ }
+            }
+
             this.port = await navigator.serial.requestPort();
-            await this.port.open({ baudRate: 9600 });
+            
+            // Try to open at 9600 baud (Arduino default)
+            let openSuccess = false;
+            for (let attempt = 0; attempt < 2; attempt++) {
+                try {
+                    await this.port.open({ baudRate: 9600 });
+                    openSuccess = true;
+                    break;
+                } catch (openErr) {
+                    const errMsg = openErr && openErr.message ? openErr.message : String(openErr);
+                    console.warn(`Port open attempt ${attempt + 1} failed:`, errMsg);
+                    if (errMsg.includes('already open') || errMsg.includes('NetworkError')) {
+                        // Port is locked — close and wait before retry
+                        try { await this.port.close(); } catch (e) {}
+                        await new Promise(r => setTimeout(r, 500));
+                    } else {
+                        throw openErr; // non-recoverable error
+                    }
+                }
+            }
+
+            if (!openSuccess) {
+                throw new Error('PORT_LOCKED: The port appears to be in use by another program or browser tab. Please close all other tabs and try again.');
+            }
+
             this.writer = this.port.writable.getWriter();
             this.reader = this.port.readable.getReader();
             this.isConnected = true;
             if (this.onConnectionChange) this.onConnectionChange(true);
-            this._readLoop();
+            
+            // Stabilization pause for FTDI/CH340 DTR reset
+            setTimeout(() => {
+                this._readLoop();
+            }, 500);
             return true;
         } catch (error) {
             console.error('Serial connection failed:', error);
+            this.isConnected = false;
+            this.port = null;
+            this.writer = null;
+            this.reader = null;
+            if (this.onConnectionChange) this.onConnectionChange(false);
             throw error;
         }
     }
@@ -168,6 +314,10 @@ class SerialManager {
     }
 
     async send(data) {
+        if (this.isMock) {
+            console.log('Mock serial write:', data);
+            return;
+        }
         if (!this.writer) return;
         try {
             const encoder = new TextEncoder();
@@ -185,7 +335,8 @@ class SerialManager {
     }
 
     async vibrateFinger(finger, durationMs = 300) {
-        await this.send(`V${finger}:${durationMs}`);
+        const safeDuration = Math.max(10, Math.min(2000, durationMs));
+        await this.send(`V${finger}:${safeDuration}`);
     }
 
     async vibrateFingers(fingers, durationMs = 300) {
@@ -200,27 +351,45 @@ class SerialManager {
 
     async _readLoop() {
         const decoder = new TextDecoder();
-        try {
-            while (true) {
-                const { value, done } = await this.reader.read();
-                if (done) break;
-                this.readBuffer += decoder.decode(value);
-
-                // Process complete messages (newline-terminated)
-                let lines = this.readBuffer.split('\n');
-                this.readBuffer = lines.pop(); // Keep incomplete line in buffer
-                for (const line of lines) {
-                    const msg = line.trim();
-                    if (!msg) continue;
-                    if (this.onRawData) this.onRawData(msg);
-                    this._parseMessage(msg);
+        let retryCount = 0;
+        while (this.isConnected && this.port) {
+            try {
+                if (!this.reader && this.port.readable) {
+                    this.reader = this.port.readable.getReader();
                 }
-            }
-        } catch (error) {
-            if (this.isConnected) {
-                console.error('Serial read error:', error);
-                this.isConnected = false;
-                if (this.onConnectionChange) this.onConnectionChange(false);
+                if (!this.reader) break;
+
+                while (this.isConnected) {
+                    const { value, done } = await this.reader.read();
+                    if (done) break;
+                    retryCount = 0; // reset on successful read
+                    this.readBuffer += decoder.decode(value);
+
+                    let lines = this.readBuffer.split('\n');
+                    this.readBuffer = lines.pop();
+                    for (const line of lines) {
+                        const msg = line.trim();
+                        if (!msg) continue;
+                        if (this.onRawData) this.onRawData(msg);
+                        this._parseMessage(msg);
+                    }
+                }
+            } catch (error) {
+                console.warn('Transient serial read glitch:', error);
+                retryCount++;
+                if (this.reader) {
+                    try { this.reader.releaseLock(); } catch (e) {}
+                    this.reader = null;
+                }
+                if (retryCount > 5) {
+                    if (this.isConnected) {
+                        console.error('Serial read failed after retries:', error);
+                        this.isConnected = false;
+                        if (this.onConnectionChange) this.onConnectionChange(false);
+                    }
+                    break;
+                }
+                await new Promise(r => setTimeout(r, 200));
             }
         }
     }
@@ -567,6 +736,9 @@ class ModalityEngine {
         if (instrument === 'recorder') {
             return this._presentInteractiveRecorderHaptic(sequence, display, instruction, false);
         }
+        if (instrument === 'trumpet') {
+            return this._presentInteractiveTrumpetHaptic(sequence, display, instruction, false);
+        }
 
         instruction.textContent = 'Feel the vibration pattern, then reproduce the sequence.';
         display.innerHTML = '<span class="text-muted" style="font-size:1.5rem;">✋ Feel the pattern...</span>';
@@ -586,6 +758,9 @@ class ModalityEngine {
     async _presentVisualHaptic(sequence, display, instruction, instrument = 'piano') {
         if (instrument === 'recorder') {
             return this._presentInteractiveRecorderHaptic(sequence, display, instruction, true);
+        }
+        if (instrument === 'trumpet') {
+            return this._presentInteractiveTrumpetHaptic(sequence, display, instruction, true);
         }
 
         instruction.textContent = 'Watch the screen and feel the vibration pattern, then reproduce it.';
@@ -702,6 +877,82 @@ class ModalityEngine {
         instruction.textContent = 'Now reproduce what you felt on your fingers!';
     }
 
+    async _presentInteractiveTrumpetHaptic(sequence, display, instruction, isVisualHaptic = false) {
+        const FINGER_LABELS = {
+            3: 'Valve 1 (Right Index)',
+            2: 'Valve 2 (Right Middle)',
+            1: 'Valve 3 (Right Ring)'
+        };
+
+        instruction.textContent = 'Follow the vibrations: press each valve as it buzzes!';
+
+        display.innerHTML = '';
+        const noteEls = [];
+        sequence.forEach((item, i) => {
+            const noteEl = document.createElement('span');
+            noteEl.className = 'sequence-note';
+            noteEl.textContent = this._getNoteLabel(item);
+            noteEl.id = `${display.id}-note-${i}`;
+            if (!isVisualHaptic) {
+                noteEl.style.opacity = '0.4';
+            }
+            display.appendChild(noteEl);
+            noteEls.push(noteEl);
+
+            if (i < sequence.length - 1) {
+                const arrow = document.createElement('span');
+                arrow.className = 'sequence-arrow';
+                arrow.textContent = '→';
+                display.appendChild(arrow);
+            }
+        });
+
+        for (let i = 0; i < sequence.length; i++) {
+            const note = sequence[i];
+            const activeFingers = TRUMPET_NOTE_HARDWARE_FINGERS[note] || [];
+
+            noteEls[i].classList.add('highlight');
+            noteEls[i].style.opacity = '1';
+
+            if (activeFingers.length === 0) {
+                instruction.textContent = `▶ Note ${note}: (All valves open) — Do nothing!`;
+                await new Promise(r => setTimeout(r, 650));
+            } else {
+                for (let fIdx = 0; fIdx < activeFingers.length; fIdx++) {
+                    const finger = activeFingers[fIdx];
+                    const label = FINGER_LABELS[finger] || `Finger ${finger}`;
+
+                    instruction.textContent = `▶ Note ${note}: Buzzing ${label} — Press this valve now!`;
+
+                    if (this.serial.isConnected) {
+                        await this.serial.vibrateFinger(finger, 300);
+                    }
+
+                    if (this.serial.isConnected) {
+                        let bent = false;
+                        for (let retry = 0; retry < 3 && !bent; retry++) {
+                            bent = await this.waitForFingerBend(finger, 2500);
+                            if (!bent && retry < 2 && this.serial.isConnected) {
+                                await this.serial.vibrateFinger(finger, 200);
+                            }
+                        }
+                    } else {
+                        await new Promise(r => setTimeout(r, 650));
+                    }
+                }
+            }
+
+            instruction.textContent = `✅ Note ${note} formed! Listen to the tone...`;
+            await this.audio.playNote(note, 450);
+            await new Promise(r => setTimeout(r, 450));
+
+            noteEls[i].classList.remove('highlight');
+            noteEls[i].classList.add('played');
+        }
+
+        instruction.textContent = 'Now reproduce what you felt on your fingers!';
+    }
+
     /**
      * Build static sequence display (for visual reference during input).
      */
@@ -733,8 +984,10 @@ class ModalityEngine {
 class RecorderOnsetDetector {
     constructor(stableHoldMs = RECORDER_STABLE_HOLD_MS) {
         this.stableHoldMs = stableHoldMs;
-        this.fingerState = [0, 0, 0, 0, 0, 0]; // [L1, L2, L3, R1, R2, R3]
-        this.lastChangeTimes = [0, 0, 0, 0, 0, 0];
+        this.instrument = 'recorder'; // default
+        this.numSensors = 6;
+        this.fingerState = new Array(6).fill(0); // [L1, L2, L3, R1, R2, R3] or [R1, R2, R3]
+        this.lastChangeTimes = new Array(6).fill(0);
         this.holdTimeout = null;
         this.holdInterval = null;
         this.holdStartTime = 0;
@@ -746,16 +999,22 @@ class RecorderOnsetDetector {
         this.isHoldingCandidate = null;
     }
 
+    setInstrument(instrument) {
+        this.instrument = instrument;
+        this.numSensors = instrument === 'trumpet' ? 3 : 6;
+        this.fingerState = new Array(this.numSensors).fill(0);
+        this.lastChangeTimes = new Array(this.numSensors).fill(0);
+        this.reset();
+    }
+
     hardwareFingerToHoleIndex(finger) {
-        const map = {
-            4: 0, // L1 (Hole 1)
-            5: 1, // L2 (Hole 2)
-            6: 2, // L3 (Hole 3)
-            3: 3, // R1 (Hole 4)
-            2: 4, // R2 (Hole 5)
-            1: 5  // R3 (Hole 6)
-        };
-        return map[finger] !== undefined ? map[finger] : (finger - 1);
+        if (this.instrument === 'trumpet') {
+            const map = { 3: 0, 2: 1, 1: 2 };
+            return map[finger] !== undefined ? map[finger] : -1;
+        } else {
+            const map = { 4: 0, 5: 1, 6: 2, 3: 3, 2: 4, 1: 5 };
+            return map[finger] !== undefined ? map[finger] : (finger - 1);
+        }
     }
 
     reset() {
@@ -771,6 +1030,7 @@ class RecorderOnsetDetector {
 
     handleFingerChange(finger, isBent, timestamp) {
         const holeIdx = this.hardwareFingerToHoleIndex(finger);
+        if (holeIdx === -1) return; // ignore unused sensors
         const oldState = this.fingerState[holeIdx];
         const newState = isBent ? 1 : 0;
 
@@ -792,9 +1052,9 @@ class RecorderOnsetDetector {
 
         if (!this.isActive) return;
 
-        // Check if the current finger state corresponds to a valid recorder note
+        // Check if the current finger state corresponds to a valid note
         const currentVector = [...this.fingerState];
-        const matchedNote = this._getHierarchicalNoteMatch(currentVector);
+        const matchedNote = this._getNoteMatch(currentVector);
 
         if (!matchedNote) {
             // Open hand [0,0,0,0,0,0] or non-matching transition shape
@@ -837,7 +1097,7 @@ class RecorderOnsetDetector {
 
     _notifyStateChange(noteName, progressPct) {
         if (this.onStateChange) {
-            const holeNames = ['L1', 'L2', 'L3', 'R1', 'R2', 'R3'];
+            const holeNames = this.instrument === 'trumpet' ? ['R1', 'R2', 'R3'] : ['L1', 'L2', 'L3', 'R1', 'R2', 'R3'];
             const active = this.fingerState
                 .map((v, i) => v === 1 ? holeNames[i] : null)
                 .filter(Boolean);
@@ -852,35 +1112,32 @@ class RecorderOnsetDetector {
     }
 
     /**
-     * Noise-tolerant hierarchical diatonic woodwind matcher.
-     * Matches based on progressive top-down hole closure starting at Hole 1 (L1),
-     * tolerating resting noise on lower open holes.
+     * Note matcher for both Recorder and Trumpet.
      */
-    _getHierarchicalNoteMatch(vector) {
-        // If all 6 holes are open, no note
-        if (vector.every(v => v === 0)) return null;
+    _getNoteMatch(vector) {
+        if (this.instrument === 'trumpet') {
+            const str = vector.join('');
+            const map = { '000': 'C', '100': 'D', '010': 'E', '110': 'F', '001': 'G', '111': 'A' };
+            return map[str] || null;
+        } else {
+            // Recorder acoustics: Hole 1 (L1) must be closed
+            if (vector.every(v => v === 0)) return null;
+            if (vector[0] !== 1) return null;
 
-        // In recorder acoustics, Hole 1 (L1) must be closed to produce standard diatonic notes
-        if (vector[0] !== 1) return null;
-
-        // Count consecutive closed holes from top down [L1, L2, L3, R1, R2, R3]
-        let consecutiveClosed = 0;
-        for (let i = 0; i < 6; i++) {
-            if (vector[i] === 1) {
-                consecutiveClosed++;
-            } else {
-                break; // Stop at first open tone hole
+            let consecutiveClosed = 0;
+            for (let i = 0; i < 6; i++) {
+                if (vector[i] === 1) consecutiveClosed++; else break;
             }
-        }
 
-        switch (consecutiveClosed) {
-            case 6: return 'C'; // All 6 covered
-            case 5: return 'D'; // L1, L2, L3, R1, R2 covered (R3 open)
-            case 4: return 'E'; // L1, L2, L3, R1 covered (R2, R3 open)
-            case 3: return 'F'; // L1, L2, L3 covered (Right hand open)
-            case 2: return 'G'; // L1, L2 covered (L3, Right hand open)
-            case 1: return 'A'; // L1 covered (L2..R3 open)
-            default: return null;
+            switch (consecutiveClosed) {
+                case 6: return 'C';
+                case 5: return 'D';
+                case 4: return 'E';
+                case 3: return 'F';
+                case 2: return 'G';
+                case 1: return 'A';
+                default: return null;
+            }
         }
     }
 
@@ -915,12 +1172,13 @@ class DataCollector {
     /**
      * Initialize a new participant record.
      */
-    createParticipant(participantId, group, experience, dominantHand, expectedModality, instrument = 'piano', windExperience = 'none') {
+    createParticipant(participantId, group, experience, dominantHand, expectedModality, instrument = 'piano', windExperience = 'none', brassExperience = 'none') {
         this.participantData = {
             participantId,
             instrument: instrument || 'piano',
             priorExperience: experience || 'none',
             priorWindExperience: windExperience || 'none',
+            priorBrassExperience: brassExperience || 'none',
             dominantHand: dominantHand || 'right',
             expectedModality: expectedModality || 'unsure',
             experimentalGroup: group,
@@ -1285,7 +1543,7 @@ class DataCollector {
         const participants = this.getAllParticipants(studyType);
         if (participants.length === 0) { alert('No participant data found.'); return; }
 
-        let csv = 'ParticipantID,Instrument,ExpectedModality,Experience,WindExperience,DominantHand,Session,Group,Phase,Modality,Level,SequenceTarget,SequenceActual,' +
+        let csv = 'ParticipantID,Instrument,ExpectedModality,Experience,WindExperience,BrassExperience,DominantHand,Session,Group,Phase,Modality,Level,SequenceTarget,SequenceActual,' +
                   'OrderAccuracy,TimingAccuracy,CombinedScore,Passed,ResponseTimeMs,CompletionTimeMs,' +
                   'TargetTempo,Errors,Attempt,SynchronySpreads\r\n';
 
@@ -1296,7 +1554,7 @@ class DataCollector {
                 const seqActual = Array.isArray(t.userSequence) ? t.userSequence.join('-') : t.userSequence;
                 const syncSpreads = (t.synchronySpreads && t.synchronySpreads.length > 0) ? t.synchronySpreads.join('-') : 'N/A';
                 
-                csv += `${p.participantId},${p.instrument || 'piano'},${p.expectedModality || 'unsure'},${p.priorExperience || 'none'},${p.priorWindExperience || 'none'},${p.dominantHand || 'right'},${t.sessionNumber},${p.experimentalGroup},${t.phase},` +
+                csv += `${p.participantId},${p.instrument || 'piano'},${p.expectedModality || 'unsure'},${p.priorExperience || 'none'},${p.priorWindExperience || 'none'},${p.priorBrassExperience || 'none'},${p.dominantHand || 'right'},${t.sessionNumber},${p.experimentalGroup},${t.phase},` +
                        `${t.modality},${t.level},"${seqTarget}","${seqActual}",` +
                        `${t.orderAccuracy.toFixed(3)},${t.timingAccuracy.toFixed(3)},${t.combinedScore.toFixed(3)},${t.passed ? 1 : 0},` +
                        `${t.responseTimeMs},${t.completionTimeMs},${t.targetInterNoteTiming},` +
@@ -1314,7 +1572,7 @@ class DataCollector {
         const participants = this.getAllParticipants(studyType);
         if (participants.length === 0) { alert('No participant data found.'); return; }
 
-        let csv = 'ParticipantID,Instrument,ExpectedModality,Experience,WindExperience,DominantHand,Group,VisualScore,AudioScore,HapticScore,VisualHapticScore,' +
+        let csv = 'ParticipantID,Instrument,ExpectedModality,Experience,WindExperience,BrassExperience,DominantHand,Group,VisualScore,AudioScore,HapticScore,VisualHapticScore,' +
                   'SelfSelected,SystemSelected,ActiveModality,AdaptationTriggered,' +
                   'TrainingAvgOrderAcc,TrainingAvgTimingAcc,TrainingAvgCombined,' +
                   'RetentionOrderAcc,RetentionTimingAcc,RetentionCombined,DaysBetweenSessions,Notes\r\n';
@@ -1333,7 +1591,7 @@ class DataCollector {
 
             const sanitizedNotes = (p.notes || '').replace(/"/g, '""').replace(/\r?\n/g, ' ');
 
-            csv += `${p.participantId},${p.instrument || 'piano'},${p.expectedModality || 'unsure'},${p.priorExperience || 'none'},${p.priorWindExperience || 'none'},${p.dominantHand || 'right'},${p.experimentalGroup},` +
+            csv += `${p.participantId},${p.instrument || 'piano'},${p.expectedModality || 'unsure'},${p.priorExperience || 'none'},${p.priorWindExperience || 'none'},${p.priorBrassExperience || 'none'},${p.dominantHand || 'right'},${p.experimentalGroup},` +
                    `${ms.visual?.composite || 0},${ms.audio?.composite || 0},${ms.haptic?.composite || 0},${ms['visual-haptic']?.composite || 0},` +
                    `${p.selfSelectedModality || 'N/A'},${p.systemSelectedModality || 'N/A'},${p.activeModality || 'N/A'},${p.adaptationTriggered ? 'Yes' : 'No'},` +
                    `${avgTrainOrder.toFixed(3)},${avgTrainTiming.toFixed(3)},${avgTrainCombined.toFixed(3)},` +
@@ -1382,6 +1640,7 @@ class DataCollector {
             age: p.age || 'N/A',
             priorExperience: p.priorExperience || 'none',
             priorWindExperience: p.priorWindExperience || 'none',
+            priorBrassExperience: p.priorBrassExperience || 'none',
             dominantHand: p.dominantHand || 'right',
             experimentalGroup: p.experimentalGroup,
             modalityScores: {
@@ -1461,22 +1720,24 @@ function computeNoteMatch(targetNote, userNote, instrument = 'piano') {
         return targetNote === userNote ? 1.0 : 0.0;
     }
 
-    const targetFingers = Array.isArray(targetNote) ? targetNote : RECORDER_NOTE_FINGERS[targetNote];
+    const dict = instrument === 'trumpet' ? TRUMPET_NOTE_FINGERS : RECORDER_NOTE_FINGERS;
+    const targetFingers = Array.isArray(targetNote) ? targetNote : dict[targetNote];
     const userFingers = Array.isArray(userNote)
         ? userNote
-        : (RECORDER_NOTE_FINGERS[userNote] || (userNote?.fingers ? userNote.fingers : null));
+        : (dict[userNote] || (userNote?.fingers ? userNote.fingers : null));
 
     if (!targetFingers || !userFingers) {
         return (targetNote === userNote) ? 1.0 : 0.0;
     }
 
+    const vectorLength = instrument === 'trumpet' ? 3 : 6;
     let matches = 0;
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < vectorLength; i++) {
         if (targetFingers[i] === userFingers[i]) {
             matches++;
         }
     }
-    return matches / 6.0;
+    return matches / vectorLength;
 }
 
 /**
@@ -1638,12 +1899,20 @@ class UIRenderer {
                 dot.className = 'status-dot connected';
                 badge.innerHTML = '';
                 badge.appendChild(dot);
-                badge.append(' Connected');
+                if (this.serial && this.serial.isMock) {
+                    badge.append(' Simulated');
+                } else {
+                    badge.append(' Connected');
+                }
             } else {
                 dot.className = 'status-dot disconnected';
                 badge.innerHTML = '';
                 badge.appendChild(dot);
-                badge.append(' Disconnected');
+                if (this.serial && !('serial' in navigator)) {
+                    badge.append(' Disconnected (Sim Available)');
+                } else {
+                    badge.append(' Disconnected');
+                }
             }
         });
 
@@ -1652,14 +1921,33 @@ class UIRenderer {
             const btn = document.getElementById(id);
             if (btn) {
                 if (isConnected) {
-                    btn.innerHTML = '<span class="status-dot connected"></span> Connected';
+                    if (this.serial && this.serial.isMock) {
+                        btn.innerHTML = '<span class="status-dot connected"></span> Connected (Simulated)';
+                    } else {
+                        btn.innerHTML = '<span class="status-dot connected"></span> Connected';
+                    }
                     btn.disabled = true;
                 } else {
-                    btn.innerHTML = '<span class="status-dot disconnected"></span> Connect Device';
+                    if (this.serial && !('serial' in navigator)) {
+                        btn.innerHTML = '<span class="status-dot disconnected"></span> Connect Simulated Glove';
+                    } else {
+                        btn.innerHTML = '<span class="status-dot disconnected"></span> Connect Device';
+                    }
                     btn.disabled = false;
                 }
             }
         });
+
+        // Sync and enable/disable simulated glove checkboxes
+        const serialSupported = 'serial' in navigator;
+        const mockCheckbox = document.getElementById('mock-glove-checkbox');
+        const returningMockCheckbox = document.getElementById('returning-mock-glove-checkbox');
+        if (mockCheckbox) {
+            mockCheckbox.disabled = isConnected || !serialSupported;
+        }
+        if (returningMockCheckbox) {
+            returningMockCheckbox.disabled = isConnected || !serialSupported;
+        }
     }
 
     /**
@@ -1789,8 +2077,20 @@ class UIRenderer {
         if (windGroup) {
             if (instrument === 'recorder') {
                 windGroup.classList.remove('hidden');
+                windGroup.style.display = 'block';
             } else {
                 windGroup.classList.add('hidden');
+                windGroup.style.display = 'none';
+            }
+        }
+        const brassGroup = document.getElementById('brass-experience-group');
+        if (brassGroup) {
+            if (instrument === 'trumpet') {
+                brassGroup.classList.remove('hidden');
+                brassGroup.style.display = 'block';
+            } else {
+                brassGroup.classList.add('hidden');
+                brassGroup.style.display = 'none';
             }
         }
 
@@ -1842,10 +2142,37 @@ class UIRenderer {
             </ul>
         `;
 
+        const trumpetMappingHtml = `
+            <ul style="margin:0; padding-left:1.2rem; line-height:1.7; font-size:0.9rem; color:var(--text-secondary); text-align:left;">
+                <li><strong style="color:var(--text-primary);">Right Glove (Index, Middle, Ring):</strong>
+                    <ul style="margin:0; padding-left:1.2rem;">
+                        <li>Valve 3 (R3 / Sensor 1): Ring Finger</li>
+                        <li>Valve 2 (R2 / Sensor 2): Middle Finger</li>
+                        <li>Valve 1 (R1 / Sensor 3): Index Finger</li>
+                    </ul>
+                </li>
+                <li class="mt-2"><strong style="color:var(--text-primary);">Left Glove (Index, Middle, Ring):</strong>
+                    <ul style="margin:0; padding-left:1.2rem;">
+                        <li>(Disabled/Ignored for Trumpet)</li>
+                    </ul>
+                </li>
+                <li class="mt-2"><strong style="color:var(--text-primary);">Note Fingering (Curled = Pressed):</strong>
+                    <ul style="margin:0; padding-left:1.2rem;">
+                        <li>Note C: All valves open</li>
+                        <li>Note D: Valve 1 (R-Index) pressed</li>
+                        <li>Note E: Valve 2 (R-Middle) pressed</li>
+                        <li>Note F: Valves 1 & 2 (R-Index, R-Middle) pressed</li>
+                        <li>Note G: Valve 3 (R-Ring) pressed</li>
+                        <li>Note A: All valves pressed</li>
+                    </ul>
+                </li>
+            </ul>
+        `;
+
         ['glove-mapping-content', 'returning-glove-mapping-content'].forEach(id => {
             const el = document.getElementById(id);
             if (el) {
-                el.innerHTML = instrument === 'recorder' ? recorderMappingHtml : pianoMappingHtml;
+                el.innerHTML = instrument === 'recorder' ? recorderMappingHtml : (instrument === 'trumpet' ? trumpetMappingHtml : pianoMappingHtml);
             }
         });
 
@@ -1864,6 +2191,13 @@ class UIRenderer {
             4: { num: '1', note: 'L1', pos: 'L-Index' },
             5: { num: '2', note: 'L2', pos: 'L-Middle' },
             6: { num: '3', note: 'L3', pos: 'L-Ring' }
+        } : (instrument === 'trumpet' ? {
+            1: { num: 'V3', note: 'R3', pos: 'R-Ring' },
+            2: { num: 'V2', note: 'R2', pos: 'R-Middle' },
+            3: { num: 'V1', note: 'R1', pos: 'R-Index' },
+            4: { num: '-', note: 'L1', pos: 'Off' },
+            5: { num: '-', note: 'L2', pos: 'Off' },
+            6: { num: '-', note: 'L3', pos: 'Off' }
         } : {
             1: { num: '1', note: 'C', pos: 'R-Ring' },
             2: { num: '2', note: 'D', pos: 'R-Middle' },
@@ -1871,7 +2205,7 @@ class UIRenderer {
             4: { num: '4', note: 'F', pos: 'L-Index' },
             5: { num: '5', note: 'G', pos: 'L-Middle' },
             6: { num: '6', note: 'A', pos: 'L-Ring' }
-        };
+        });
 
         ['', 'training-', 'retention-'].forEach(prefix => {
             for (let f = 1; f <= 6; f++) {
@@ -1896,7 +2230,7 @@ class UIRenderer {
         });
 
         document.querySelectorAll('.recorder-live-preview').forEach(preview => {
-            if (instrument === 'recorder') {
+            if (instrument === 'recorder' || instrument === 'trumpet') {
                 preview.classList.remove('hidden');
             } else {
                 preview.classList.add('hidden');
@@ -1940,9 +2274,14 @@ class UIRenderer {
         }
 
         if (dotsBadge && state.vector) {
-            const l = state.vector.slice(0, 3).map(v => v === 1 ? '●' : '○').join('');
-            const r = state.vector.slice(3, 6).map(v => v === 1 ? '●' : '○').join('');
-            dotsBadge.textContent = `[${l} | ${r}]`;
+            if (state.vector.length === 3) {
+                const r = state.vector.map(v => v === 1 ? '●' : '○').join('');
+                dotsBadge.textContent = `[R: ${r}]`;
+            } else {
+                const l = state.vector.slice(0, 3).map(v => v === 1 ? '●' : '○').join('');
+                const r = state.vector.slice(3, 6).map(v => v === 1 ? '●' : '○').join('');
+                dotsBadge.textContent = `[${l} | ${r}]`;
+            }
         }
 
         if (progressBar) {
@@ -2122,6 +2461,7 @@ class AppController {
         this.dashboardTab = 'main'; // 'main', 'archive', or 'pilot'
         this.dashboardSubTab = 'all'; // 'all', 'self-selected', 'system-selected'
         this.ui = new UIRenderer();
+        this.ui.serial = this.serial;
 
         // Instrument & Onset Detection
         this.instrument = 'piano'; // 'piano' or 'recorder'
@@ -2160,6 +2500,51 @@ class AppController {
         // Initialize
         this._setupEventListeners();
         this._setupSerialCallbacks();
+        this._setupMockCheckboxes();
+    }
+
+    _setupMockCheckboxes() {
+        const serialSupported = 'serial' in navigator;
+        const mockCheckbox = document.getElementById('mock-glove-checkbox');
+        const returningMockCheckbox = document.getElementById('returning-mock-glove-checkbox');
+
+        if (!serialSupported) {
+            if (mockCheckbox) {
+                mockCheckbox.checked = true;
+                mockCheckbox.disabled = true;
+            }
+            if (returningMockCheckbox) {
+                returningMockCheckbox.checked = true;
+                returningMockCheckbox.disabled = true;
+            }
+            this.serial.isMock = true;
+
+            // Show toast or info about simulated glove
+            setTimeout(() => {
+                this.ui.showToast('ℹ️ Web Serial API unsupported. Running in simulated mode.');
+            }, 1000);
+        } else {
+            // Listen for checkbox changes to sync them
+            if (mockCheckbox) {
+                mockCheckbox.addEventListener('change', (e) => {
+                    const checked = e.target.checked;
+                    this.serial.isMock = checked;
+                    if (returningMockCheckbox) returningMockCheckbox.checked = checked;
+                    this.ui.updateConnectionStatus(this.serial.isConnected);
+                });
+            }
+            if (returningMockCheckbox) {
+                returningMockCheckbox.addEventListener('change', (e) => {
+                    const checked = e.target.checked;
+                    this.serial.isMock = checked;
+                    if (mockCheckbox) mockCheckbox.checked = checked;
+                    this.ui.updateConnectionStatus(this.serial.isConnected);
+                });
+            }
+        }
+        
+        // Initial connection UI state update
+        this.ui.updateConnectionStatus(this.serial.isConnected);
     }
 
     // ─── Event Listeners ──────────────────────────────────────────
@@ -2169,9 +2554,11 @@ class AppController {
         if (instSelect) {
             instSelect.addEventListener('change', (e) => {
                 this.instrument = e.target.value;
+                this.recorderDetector.setInstrument(this.instrument);
                 this.ui.updateInstrumentView(this.instrument);
             });
             this.instrument = instSelect.value || 'piano';
+            this.recorderDetector.setInstrument(this.instrument);
             this.ui.updateInstrumentView(this.instrument);
         }
 
@@ -2485,11 +2872,26 @@ class AppController {
 
     // ─── Connection & Readiness ───────────────────────────────────
     async _handleConnect() {
+        const btn = document.getElementById('connect-btn');
+        const retBtn = document.getElementById('returning-connect-btn');
+        [btn, retBtn].forEach(b => { if (b) { b.disabled = true; b.textContent = 'Connecting…'; } });
         try {
             await this.serial.connect();
-            this.ui.showToast('Device connected!');
+            this.ui.showToast('✅ Device connected! Ready to start.');
         } catch (e) {
-            this.ui.showToast('Connection failed. Please try again.');
+            const msg = e && e.message ? e.message : String(e);
+            console.error('Connect error detail:', e);
+            // Re-enable button on failure
+            this.ui.updateConnectionStatus(false);
+            if (msg.includes('user canceled') || msg.includes('No port selected') || msg.includes('cancelled')) {
+                this.ui.showToast('Connection cancelled.', 3000);
+            } else if (msg.includes('PORT_LOCKED') || msg.includes('already open') || msg.includes('NetworkError')) {
+                this.ui.showToast('⚠️ Port is busy. Close all other Chrome tabs using this app, then try again.', 8000);
+            } else if (msg.includes('not supported') || msg.includes('serial')) {
+                this.ui.showToast('❌ Web Serial not supported. Use Chrome or Edge on desktop.', 6000);
+            } else {
+                this.ui.showToast(`❌ Connection failed: ${msg}. Try unplugging and replugging the Arduino.`, 8000);
+            }
         }
     }
 
@@ -2518,7 +2920,7 @@ class AppController {
         const generatedId = this._updateGeneratedId();
         const btn1 = document.getElementById('start-study-btn');
         if (btn1) {
-            btn1.disabled = !(generatedId && this.serial.isConnected);
+            btn1.disabled = !generatedId;
         }
 
         // Session 2
@@ -2526,7 +2928,7 @@ class AppController {
         const id2 = select ? select.value : '';
         const btn2 = document.getElementById('start-session2-btn');
         if (btn2) {
-            btn2.disabled = !(id2 && this.serial.isConnected);
+            btn2.disabled = !id2;
         }
     }
 
@@ -2534,13 +2936,23 @@ class AppController {
     async _startSession1() {
         const experience = document.getElementById('participant-experience').value;
         const windExperience = document.getElementById('participant-wind-experience')?.value || 'none';
+        const brassExperience = document.getElementById('participant-brass-experience')?.value || 'none';
         const hand = document.getElementById('participant-hand').value;
         const expectedModality = document.getElementById('participant-expected-modality').value || 'unsure';
         this.instrument = document.getElementById('instrument-select')?.value || 'piano';
+        this.recorderDetector.setInstrument(this.instrument);
         this.participantId = this._updateGeneratedId();
         this.group = document.getElementById('group-select').value;
 
         if (!this.participantId) return;
+
+        // Auto fallback to simulated glove if device is not connected
+        if (!this.serial.isConnected) {
+            this.serial.isMock = true;
+            this.serial.isConnected = true;
+            this.ui.updateConnectionStatus(true);
+            this.ui.showToast('ℹ️ Starting study in Simulated Mode (Keyboard 1-6 active).');
+        }
 
         // Determine modality order via Latin Square (offset by 2 for recorder)
         let charSum = 0;
@@ -2554,7 +2966,7 @@ class AppController {
         this.consecutiveFailures = 0;
 
         // Create participant record
-        this.data.createParticipant(this.participantId, this.group, experience, hand, expectedModality, this.instrument, windExperience);
+        this.data.createParticipant(this.participantId, this.group, experience, hand, expectedModality, this.instrument, windExperience, brassExperience);
         this.data.participantData.profilingOrder = [...this.modalityOrder];
 
         // UI setup
@@ -2579,6 +2991,13 @@ class AppController {
         this.participantId = select ? select.value : '';
 
         if (!this.participantId) return;
+
+        if (!this.serial.isConnected) {
+            this.serial.isMock = true;
+            this.serial.isConnected = true;
+            this.ui.updateConnectionStatus(true);
+            this.ui.showToast('ℹ️ Starting Session 2 in Simulated Mode (Keyboard 1-6 active).');
+        }
 
         const loaded = this.data.loadParticipant(this.participantId);
         if (!loaded) {
@@ -3607,16 +4026,4 @@ class AppController {
 // ═══════════════════════════════════════════════════════════════════════
 //  INITIALIZATION
 // ═══════════════════════════════════════════════════════════════════════
-if ('serial' in navigator) {
-    const app = new AppController();
-} else {
-    document.body.innerHTML = `
-        <div style="display:flex;align-items:center;justify-content:center;height:100vh;
-                    background:#0a0e27;color:#e8eaf6;font-family:Inter,sans-serif;text-align:center;padding:2rem;">
-            <div>
-                <h1 style="font-size:2rem;margin-bottom:1rem;">Web Serial API Not Supported</h1>
-                <p style="color:#9fa8da;">Please open this application in <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong>.</p>
-            </div>
-        </div>
-    `;
-}
+const app = new AppController();
